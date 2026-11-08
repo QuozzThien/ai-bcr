@@ -95,19 +95,82 @@ function svg(cells,cw,minC,shape){const W=Math.max(minC,...cells.map(c=>c.x+1))*
  return s+'</svg>'}
 function draw(id,html){const e=$(id);e.innerHTML=html;e.scrollLeft=e.scrollWidth}
 
-function pattern(){const L=place(H).L;if(!L.length)return{door:'B',name:'–',reason:'Chưa có dữ liệu, mặc định Cái.'};
- const n=L.map(c=>c.length),m=n.length,ln=n[m-1],last=L[m-1][0],opp=last==='B'?'P':'B',t4=n.slice(-4).join('');
- let name,door;
- if(ln>=4){name='Bệt '+ln;door=last}
- else if(m>=4&&t4==='1111'){name='1-1';door=opp}
- else if(m>=4&&t4==='2222'){name='2-2';door=ln===2?opp:last}
- else if(m>=4&&(t4==='1212'||t4==='2121')){name=t4==='1212'?'1-2':'2-1';door=opp}
- else{name='Chưa rõ';door=last}
- return{door,name,reason:name==='Chưa rõ'?'Chưa có cầu rõ, giữ cửa vừa ra.':`Cầu ${name} → theo cầu: ${NAME[door]}.`}}
-function askRoad(){const L1=place(H).L,res={};
- for(const s of'BP'){const L2=place([...H,s]).L;res[s]=[1,2,3].map(k=>{const a=derived(L1,k),b=derived(L2,k);return b.length>a.length?(b[b.length-1]==='B'?'🔴':'🔵'):'–'}).join(' ')}
- return`Hỏi cầu (Mắt/Nhỏ/Gián): nếu ra Cái → ${res.B} · nếu ra Con → ${res.P}`}
-function runsTest(){const s=H.filter(x=>x!=='T'),n=s.length;if(n<20)return`Cần ≥20 ván Cái/Con (có ${n}).`;
+// ==========================================
+// LÕI THUẬT TOÁN NÂNG CẤP (PHÂN TÍCH CẦU)
+// ==========================================
+function pattern(){
+ const L=place(H).L;
+ if(!L.length) return {door:'B', name:'Chưa có', reason:'Chưa có dữ liệu, mặc định Cái.', prob: BASE.B};
+
+ const n = L.map(c=>c.length); // Mảng độ dài các cột (VD: [1, 2, 3, 1, 4])
+ const m = n.length;
+ const lastCol = L[m-1];
+ const lastRes = lastCol[0]; // Kết quả của cột hiện tại (B hoặc P)
+ const opp = lastRes === 'B' ? 'P' : 'B';
+ const lastLen = lastCol.length; // Độ dài cột hiện tại
+
+ // Hàm phụ lấy chuỗi N cột gần nhất
+ const getRecent = (k) => n.slice(-k).join('');
+
+ // 1. NHẬN DIỆN CẦU BỆT (Cột hiện tại >= 4)
+ if(lastLen >= 4){
+    return {door: lastRes, name: `Bệt ${lastLen}`, reason: `Cầu bệt ${lastLen} tay. Thường bám tiếp hoặc bẻ.`, prob: 0.52};
+ }
+
+ // 2. NHẬN DIỆN CẦU 1-1 (Ping Pong)
+ if(m >= 4 && getRecent(4) === '1111'){
+    return {door: opp, name: '1-1', reason: 'Cầu 1-1 (Ping-Pong). Bám nhịp đan xen.', prob: 0.51};
+ }
+
+ // 3. NHẬN DIỆN CẦU 2-2
+ if(m >= 4 && getRecent(4) === '2222'){
+    // Nếu cột hiện tại dài 2, bẻ sang cửa khác
+    let target = lastLen === 2 ? opp : lastRes;
+    return {door: target, name: '2-2', reason: 'Cầu 2-2. Đi theo nhịp 2 tay mỗi bên.', prob: 0.51};
+ }
+
+ // 4. NHẬN DIỆN CẦU 1-2 HOẶC 2-1
+ if(m >= 4){
+    let t4 = getRecent(4);
+    if(t4 === '1212' || t4 === '2121'){
+        // Nhịp 1-2: 1 tay A, 2 tay B, 1 tay A... -> cột tiếp theo dài 2
+        let target = lastLen === 1 ? lastRes : opp;
+        return {door: target, name: t4==='1212'?'1-2':'2-1', reason: `Cầu ${t4==='1212'?'1-2':'2-1'}. Bám nhịp.`, prob: 0.51};
+    }
+ }
+
+ // 5. NHẬN DIỆN CẦU 1-3, 3-1 (Rồng)
+ if(m >= 4){
+    let t4 = getRecent(4);
+    if(t4 === '1313' || t4 === '3131'){
+        let target = lastLen === 1 ? lastRes : (lastLen === 3 ? lastRes : opp);
+        return {door: target, name: t4==='1313'?'1-3':'3-1', reason: 'Cầu Rồng (Nhịp dài).', prob: 0.51};
+    }
+ }
+
+ // 6. FALLBACK: Chưa có cầu rõ ràng, dùng thống kê tổng quát
+ let countB = H.filter(x=>x==='B').length;
+ let countP = H.filter(x=>x==='P').length;
+ let target = countB >= countP ? 'B' : 'P';
+ let reason = countB === countP ? 'Cân bằng, đánh nối tiếp ván cuối.' : `Xu hướng nghiêng về ${NAME[target]}.`;
+ 
+ return {door: target, name: 'Chưa rõ', reason: reason, prob: 0.50};
+}
+
+function askRoad(){
+    const L1=place(H).L,res={};
+    for(const s of'BP'){
+        const L2=place([...H,s]).L;
+        res[s]=[1,2,3].map(k=>{
+            const a=derived(L1,k),b=derived(L2,k);
+            return b.length>a.length?(b[b.length-1]==='B'?'🔴':'🔵'):'–'
+        }).join(' ')
+    }
+    return `Hỏi cầu (Mắt/Nhỏ/Gián): nếu ra Cái → ${res.B} · nếu ra Con → ${res.P}`;
+}
+
+function runsTest(){
+ const s=H.filter(x=>x!=='T'),n=s.length;if(n<20)return`Cần ≥20 ván Cái/Con (có ${n}).`;
  const n1=s.filter(x=>x==='B').length,n2=n-n1;if(!n1||!n2)return'Chuỗi chỉ có một cửa.';
  let R=1;for(let i=1;i<n;i++)if(s[i]!==s[i-1])R++;
  const mu=2*n1*n2/n+1,z=(R-mu)/Math.sqrt((mu-1)*(mu-2)/(n-1));
@@ -116,12 +179,17 @@ function runsTest(){const s=H.filter(x=>x!=='T'),n=s.length;if(n<20)return`Cần
 function render(){
  const P=pattern(),R=place(H);
  $('hero').style.background=`var(--${P.door})`;$('pk').textContent=NAME[P.door].toUpperCase();
- $('pp').textContent='Xác suất thật: '+pc(BASE[P.door]);$('sub').textContent=P.reason;
+ 
+ // Hiển thị xác suất: Nếu có cầu rõ, hiển thị xác suất ước lượng của cầu, ngược lại hiển thị BASE
+ let probDisplay = P.name === 'Chưa rõ' ? BASE[P.door] : P.prob;
+ $('pp').textContent='Xác suất: '+pc(probDisplay);$('sub').textContent=P.reason;
+ 
  draw('big',svg(R.cells,30,14,'ring'));
  draw('bead',svg(H.map((s,i)=>({x:Math.floor(i/6),y:i%6,s,t:0})),30,14,'bead'));
  draw('eye',svg(place(derived(R.L,1)).cells,18,24,'ring'));
  draw('sml',svg(place(derived(R.L,2)).cells,18,24,'dot'));
  draw('roach',svg(place(derived(R.L,3)).cells,18,24,'slash'));
+ 
  $('pat').textContent='Cầu đang chạy: '+P.name+' · '+R.L.length+' cột';$('ask').textContent=askRoad();
  const c={B:0,P:0,T:0};H.forEach(x=>c[x]++);$('cnt').textContent=`Cái ${c.B} · Con ${c.P} · Hòa ${c.T} (tổng ${H.length})`;$('rt').textContent=runsTest()}
 
