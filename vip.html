@@ -29,12 +29,6 @@ button{font-family:inherit;cursor:pointer}
 .sec button{flex:1;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:12px;padding:14px 4px;font-size:15px}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#fff;color:#111;padding:10px 16px;border-radius:99px;font-size:15px;font-weight:600;box-shadow:0 4px 16px #0008;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;text-align:center}
 #toast.on{opacity:1}
-.bank{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:12px;margin:10px 0 0}
-.bank .r{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.bank label{color:var(--mu);font-size:13px;display:block;margin-bottom:3px}
-.bank input,.bank select{width:100%;background:#0d1017;color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:12px;font-size:17px}
-.bank .c{flex:1;min-width:90px}
-#bet{margin-top:10px;font-size:15px;color:#c9d0dc;line-height:1.5}#bet b{color:var(--tx);font-size:18px}
 .pr{display:flex;gap:8px;margin-top:12px}.pr div{flex:1;background:#0d1017;border:1px solid var(--bd);border-radius:12px;padding:8px 2px}
 .pr small{display:block;color:var(--mu);font-size:12px}.pr b{font-size:21px}
 .tag{font-size:13px;color:var(--mu);margin-top:8px}
@@ -56,14 +50,6 @@ details button{background:var(--card);color:var(--tx);border:1px solid var(--bd)
  <div class="why" id="why"></div>
 </div>
 
-<div class="bank">
- <div class="r">
-  <div class="c"><label>Vốn của bạn</label><input id="cap" type="number" inputmode="decimal" min="0" placeholder="vd 1000"></div>
-  <div class="c"><label>Mức rủi ro / ván</label><select id="lvl"><option value="1">Thận trọng 1%</option><option value="2">Vừa 2%</option><option value="3">Mạnh 3%</option></select></div>
-  <div class="c"><label>Cược tối thiểu bàn</label><input id="minb" type="number" inputmode="decimal" min="0" placeholder="vd 10"></div>
- </div>
- <div id="bet"></div>
-</div>
 <div class="beads" id="beads"></div>
 
 <div class="row"><button class="k kP" data-r="P">CON</button><button class="k kT" data-r="T">HÒA</button><button class="k kB" data-r="B">CÁI</button></div>
@@ -84,9 +70,8 @@ const NAME={B:'Cái',P:'Con',T:'Hòa'},BASE={B:.4586,P:.4462,T:.0952},M=120,CAP=
 const $=id=>document.getElementById(id),opp=x=>x==='B'?'P':'B',pc=v=>(100*v).toFixed(1)+'%';
 
 // ===== trạng thái =====
-let S={E:[],brain:{m:{},p:{},tot:0},acc:{h:0,n:0},bank:{cap:0,lvl:2,minb:0}};
+let S={E:[],brain:{m:{},p:{},tot:0},acc:{h:0,n:0}};
 try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&x.E&&x.brain)S=x}catch(e){}
-if(!S.bank)S.bank={cap:0,lvl:2,minb:0};
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}render()}
 function inc(b,k,o,dv){const t=S.brain[b]||(S.brain[b]={});t[k]=t[k]||{};t[k][o]=Math.max(0,(t[k][o]||0)+dv)}
 const seqF=()=>S.E.map(e=>e.r).filter(r=>r!=='T');
@@ -139,22 +124,6 @@ function addHand(r){
 function undo(){const e=S.E.pop();if(!e)return;for(const[b,k,o]of e.d)inc(b,k,o,-1);
  if(e.h>=0){S.acc.n--;if(e.h===1)S.acc.h--}S.brain.tot=Math.max(0,S.brain.tot-1)}
 
-// ===== quản lý vốn =====
-const nice=v=>v>=100?Math.round(v/10)*10:v>=10?Math.round(v/5)*5:Math.round(v*100)/100;
-const fm=v=>(Math.round(v*100)/100).toLocaleString('vi-VN');
-function bankHTML(){
- const{cap,lvl,minb}=S.bank;if(!(cap>0))return'Nhập vốn để tính mức cược an toàn. Chỉ nên dùng số tiền bạn chấp nhận mất.';
- let bet=nice(cap*lvl/100);if(minb>0&&bet<minb)bet=minb;
- const risk=bet/cap;let h=`Mức cược mỗi ván: <b>${fm(bet)}</b> (${(100*risk).toFixed(1)}% vốn), chỉ đánh Cái hoặc Con, không đánh Hòa.<br>`;
- h+=`Thua liên tiếp 10 ván vẫn còn khoảng ${fm(Math.max(0,cap-10*bet))}.<br>Dừng khi vốn còn ≤ <b>${fm(cap*.8)}</b> (lỗ 20%). Chốt lời khi ≥ <b>${fm(cap*1.2)}</b> (lãi 20%).`;
- if(minb>0&&minb/cap>.05)h+=`<br>⚠ Cược tối thiểu của bàn đã chiếm ${(100*minb/cap).toFixed(0)}% vốn. Vốn quá nhỏ để chơi an toàn trên bàn này.`;
- return h}
-function bankRead(){
- S.bank={cap:parseFloat($('cap').value)||0,lvl:parseInt($('lvl').value)||2,minb:parseFloat($('minb').value)||0};
- try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}$('bet').innerHTML=bankHTML()}
-['cap','lvl','minb'].forEach(i=>{$(i).oninput=bankRead;$(i).onchange=bankRead});
-function bankInit(){$('cap').value=S.bank.cap||'';$('lvl').value=S.bank.lvl||2;$('minb').value=S.bank.minb||''}
-
 function bkNote(){try{const bk=+localStorage.getItem(KEY+'bk')||0;return S.brain.tot>=30&&(!bk||Date.now()-bk>14*864e5)?' · Nhớ sao lưu':''}catch(e){return''}}
 // ===== thống kê cầu =====
 function statHTML(){
@@ -180,7 +149,6 @@ function render(){
  else{pr.style.display='none';$('tag').textContent=''}
  $('stat').innerHTML=statHTML();
  $('beads').innerHTML=S.E.map(e=>`<div class="d ${e.r}">${e.r}</div>`).join('');
- $('bet').innerHTML=bankHTML();
  const a=S.acc;$('foot').textContent=`Đã học ${S.brain.tot} ván · Gợi ý đúng ${a.h}/${a.n}`+(a.n?` (${Math.round(100*a.h/a.n)}%)`:'')+bkNote()}
 let tt;function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),3500)}
 document.querySelectorAll('.k').forEach(b=>b.onclick=()=>{addHand(b.dataset.r);save()});
@@ -191,9 +159,8 @@ $('imp').onclick=()=>{const j=prompt('Dán dữ liệu học đã sao lưu:');if
 $('dl').onclick=()=>{const b=new Blob([JSON.stringify({v:1,brain:S.brain,acc:S.acc})],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='bcr-kho-du-lieu.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);try{localStorage.setItem(KEY+'bk',Date.now())}catch(e){}toast('Đã tải file sao lưu');render()};
 $('ld').onclick=()=>$('bf').click();
 $('bf').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const j=JSON.parse(t),b=j.brain||j;if(!b.m||!b.p)throw 0;if(S.brain.tot>0&&!confirm('Thay kho dữ liệu hiện tại bằng file này?'))return;S.brain=b;if(j.acc)S.acc=j.acc;save();toast('Đã nạp kho dữ liệu')}catch(x){toast('File không hợp lệ')}})};
-$('wipe').onclick=()=>{if(confirm('Xóa toàn bộ dữ liệu đã học?')){S={E:[],brain:{m:{},p:{},tot:0},acc:{h:0,n:0},bank:S.bank};save()}};
+$('wipe').onclick=()=>{if(confirm('Xóa toàn bộ dữ liệu đã học?')){S={E:[],brain:{m:{},p:{},tot:0},acc:{h:0,n:0}};save()}};
 
-//<DETECT>
 // Tự tìm lưới hạt (đỏ/xanh/lục) trong ảnh, trả về chuỗi B/P/T theo thứ tự cột trái->phải, trên->xuống
 function detectBeads(data,W,H){
  const N=W*H,code=new Uint8Array(N);
@@ -235,7 +202,6 @@ function detectBeads(data,W,H){
  const sym={1:'B',2:'P',3:'T'},seq=[];
  for(const c of cols){c.l.sort((a,b)=>a.cy-b.cy);for(const b of c.l)seq.push(sym[b.c])}
  return{seq,n:beads.length}}
-//</DETECT>
 
 function mergeSeq(seq){
  const H=S.E.map(e=>e.r);let m=Math.min(seq.length,H.length);
@@ -262,5 +228,5 @@ $('file').onchange=e=>{
  im.src=URL.createObjectURL(f)};
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
 if(S.brain.tot===0&&typeof fetch==='function'){try{fetch('bcr-kho-du-lieu.json').then(r=>r.ok?r.json():null).then(j=>{if(j&&j.brain&&j.brain.m&&S.brain.tot===0){S.brain=j.brain;if(j.acc)S.acc=j.acc;save()}}).catch(()=>{})}catch(e){}}
-bankInit();render();
+render();
 </script></body></html>
