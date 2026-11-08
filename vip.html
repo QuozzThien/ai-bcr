@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0d1017"><meta name="color-scheme" content="dark">
-<title>BCR – Dynamic Predictor</title>
+<title>BCR – Advanced Analyzer</title>
 <style>
 :root{--bg:#0d1017;--card:#171c27;--bd:#262d3b;--tx:#eef1f6;--mu:#8b95a7;--B:#e53935;--P:#1e88e5;--T:#7cb342;color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -17,7 +17,8 @@ button{font-family:inherit;cursor:pointer}
 .lb{color:var(--mu);font-size:14px;letter-spacing:.5px}
 .big{font-size:60px;font-weight:800;line-height:1.05;margin:2px 0}
 .pc{font-size:28px;font-weight:700}
-.why{margin-top:10px;font-size:15px;color:#c9d0dc;text-align:left;background:#0d1017;padding:10px;border-radius:8px;}
+.badge{display:inline-block;margin-top:10px;padding:4px 12px;border-radius:99px;background:#262d3b;font-size:14px;font-weight:600}
+.why{margin-top:10px;font-size:15px;color:#c9d0dc;text-align:left}
 .tie{color:var(--mu);font-size:14px;margin-top:6px}
 .beads{display:flex;flex-wrap:wrap;gap:4px;margin:12px 0;min-height:28px}
 .d{width:26px;height:26px;border-radius:50%;color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center}
@@ -30,164 +31,167 @@ button{font-family:inherit;cursor:pointer}
 .sec button{flex:1;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:12px;padding:14px 4px;font-size:15px}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#fff;color:#111;padding:10px 16px;border-radius:99px;font-size:15px;font-weight:600;box-shadow:0 4px 16px #0008;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;text-align:center}
 #toast.on{opacity:1}
-</style>
-</head>
-<body>
+.pr{display:flex;gap:8px;margin-top:12px}.pr div{flex:1;background:#0d1017;border:1px solid var(--bd);border-radius:12px;padding:8px 2px}
+.pr small{display:block;color:var(--mu);font-size:12px}.pr b{font-size:21px}
+.tag{font-size:13px;color:var(--mu);margin-top:8px}
+#stat{font-size:14px;color:#c9d0dc;line-height:1.55}#stat .rw{border-bottom:1px solid var(--bd);padding:6px 0}#stat .rw b{color:var(--tx)}
+.foot{color:var(--mu);font-size:13px;text-align:center;margin-top:12px}
+details{margin-top:8px;color:var(--mu);font-size:14px}summary{padding:6px 0}
+details button{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;font-size:14px;margin:4px 4px 0 0}
+</style></head><body>
 
-<div class="top"><div class="cnt" id="cnt">0/60 ván</div><button class="rs" id="rs">🔄 Xáo bài mới</button></div>
+<div class="top"><div class="cnt" id="cnt"></div><button class="rs" id="rs">Xáo bài mới</button></div>
 
 <div class="card">
- <div class="lb">DỰ ĐOÁN VÁN TỚI</div>
+ <div class="lb">NÊN ĐÁNH</div>
  <div class="big" id="door">–</div>
  <div class="pc" id="pct"></div>
  <div class="tie" id="tie"></div>
- <div class="why" id="why">Đang phân tích...</div>
+ <div class="badge" id="badge" style="display:none"></div>
+ <div class="pr" id="pr" style="display:none"></div><div class="tag" id="tag"></div>
+ <div class="why" id="why"></div>
 </div>
 
 <div class="beads" id="beads"></div>
 
-<div class="row">
-    <button class="k kP" data-r="P">CON</button>
-    <button class="k kT" data-r="T">HÒA</button>
-    <button class="k kB" data-r="B">CÁI</button>
-</div>
-
-<button class="up" id="up">📷 Quét ảnh bảng cầu</button>
+<div class="row"><button class="k kP" data-r="P">CON</button><button class="k kT" data-r="T">HÒA</button><button class="k kB" data-r="B">CÁI</button></div>
+<button class="up" id="up">📷 Tải ảnh chụp bảng cầu</button>
 <input id="file" type="file" accept="image/*" hidden>
+<div class="sec"><button id="undo">↶ Hoàn tác</button></div>
+<div class="foot" id="foot"></div>
 
-<div class="sec">
-    <button id="undo">↶ Hoàn tác (Xóa ván cuối)</button>
-</div>
-
+<details><summary>Thống kê cầu đã học</summary><div id="stat"></div></details>
 <div id="toast"></div>
 
 <script>
-const NAME={B:'CÁI',P:'CON',T:'HÒA'},BASE={B:.4586,P:.4462,T:.0952},CAP=60;
-const $=id=>document.getElementById(id),pc=v=>(100*v).toFixed(1)+'%';
+const NAME={B:'Cái',P:'Con',T:'Hòa'},BASE={B:.4586,P:.4462,T:.0952},CAP=60;
+const $=id=>document.getElementById(id),opp=x=>x==='B'?'P':'B',pc=v=>(100*v).toFixed(1)+'%';
 
-// Lưu trữ cục bộ (chỉ lưu trong phiên hiện tại)
-let H = [];
+// Lưu trữ cục bộ (chỉ dùng cho phiên hiện tại)
+let H=[]; // Mảng chứa các kết quả B, P, T
+
+function save(){render()}
+const seqF=()=>H.filter(r=>r!=='T'); // Lọc bỏ Hòa để tính toán nhịp cầu
 
 // ==========================================
-// LÕI THUẬT TOÁN (DYNAMIC ANALYZER)
+// THUẬT TOÁN (KẾT HỢP CLAUDE + DYNAMIC)
 // ==========================================
-function analyze() {
-    let res = {
-        door: 'B',
-        rate: BASE.B,
-        reason: 'Chưa có dữ liệu, dùng xác suất gốc.',
-        tie: BASE.T
-    };
 
-    if (H.length === 0) return res;
+// 1. Nhận diện cầu (Dựa trên code Claude)
+function runsOf(f){const R=[];for(const x of f){if(R.length&&R[R.length-1].c===x)R[R.length-1].n++;else R.push({c:x,n:1})}return R}
+function detect(f){
+ const R=runsOf(f);if(!R.length)return null;const L=R[R.length-1],o=opp(L.c);
+ if(L.n>=4)return{key:'bet'+Math.min(L.n,7),name:`Cầu bệt ${L.n} ${NAME[L.c]}`,cont:L.c,brk:o,warn:true};
+ let k=0;for(let i=R.length-1;i>=0&&R[i].n===1;i--)k++;
+ if(k>=4)return{key:'pp'+Math.min(k,6),name:`Cầu 1-1 (${k} tay)`,cont:o,brk:L.c};
+ const C=R.slice(0,-1);
+ if(C.length>=4){const[a,b,c,d]=C.slice(-4).map(x=>x.n);
+  if(a===c&&b===d&&a+b===3){
+   if(L.n<a)return{key:'p12',name:`Cầu ${a}-${b}`,cont:L.c,brk:o};
+   if(L.n===a)return{key:'p12',name:`Cầu ${a}-${b}`,cont:o,brk:L.c}}}
+ return null}
 
-    let last = H[H.length - 1];
-    let streak = 1;
-    for (let i = H.length - 2; i >= 0; i--) {
-        if (H[i] === last) streak++;
-        else break;
-    }
+// 2. Thống kê Markov (Dựa trên code Claude)
+function ctxStats(k,seq=H){
+ const cnt={B:0,P:0,T:0};let n=0;
+ if(seq.length<k)return{cnt,n};
+ const key=seq.slice(seq.length-k).join('');
+ for(let i=k;i<seq.length;i++){
+  if(seq.slice(i-k,i).join('')===key){cnt[seq[i]]++;n++}
+ }
+ return{cnt,n}
+}
+function estimate(cnt,n,m=120){
+ const e={};
+ for(const o of'BPT')e[o]=(cnt[o]+m*BASE[o])/(n+m);
+ return e;
+}
 
-    // 1. NẾU CHUỖI BỆT >= 4 TAY (Cảnh báo bẻ cầu)
-    if (streak >= 4) {
-        let target = last === 'B' ? 'P' : 'B'; // Bẻ cầu
-        res.door = target;
-        // Càng bệt dài, xác suất bẻ cầu (về mặt tâm lý) càng cao, nhưng thực tế vẫn quanh 50%.
-        // Ta set rate ảo quanh 55% để khuyến khích người chơi bẻ.
-        res.rate = 0.55; 
-        res.reason = `Phát hiện Cầu Bệt ${streak} tay liên tiếp. Thuật toán khuyên BẺ CẦU (đánh ${NAME[target]}).`;
-        return res;
-    }
+// 3. Khoảng tin cậy Wilson (Dựa trên code Claude)
+function wilson(c,n){if(!n)return[0,1];const z=1.96,p=c/n,d=1+z*z/n,m=p+z*z/(2*n),s=z*Math.sqrt(p*(1-p)/n+z*z/(4*n*n));return[(m-s)/d,(m+s)/d]}
 
-    // 2. NẾU LÀ CẦU 1-1 (Ping-Pong)
-    if (H.length >= 4) {
-        if (H[H.length-1] !== H[H.length-2] && H[H.length-2] !== H[H.length-3] && H[H.length-3] !== H[H.length-4]) {
-            let target = last === 'B' ? 'P' : 'B';
-            res.door = target;
-            res.rate = 0.52;
-            res.reason = `Phát hiện nhịp Cầu 1-1 (Ping-Pong). Bám nhịp đánh ${NAME[target]}.`;
-            return res;
-        }
-    }
-
-    // 3. MARKOV CỤC BỘ (Chỉ tính trong 10 ván gần nhất)
-    let recent = H.slice(-10);
-    let countB = recent.filter(x => x === 'B').length;
-    let countP = recent.filter(x => x === 'P').length;
-    let total = countB + countP;
-
-    if (total > 0) {
-        // Nếu B đang nhiều hơn P trong 10 ván qua -> Đánh tiếp B (Trend is friend)
-        if (countB > countP) {
-            res.door = 'B';
-            res.rate = (countB / total) * 0.9; // Giảm nhẹ để tránh tự tin thái quá
-            res.reason = `10 ván gần nhất: ${countB} Cái, ${countP} Con. Xu hướng đang nghiêng về CÁI.`;
-        } else if (countP > countB) {
-            res.door = 'P';
-            res.rate = (countP / total) * 0.9;
-            res.reason = `10 ván gần nhất: ${countB} Cái, ${countP} Con. Xu hướng đang nghiêng về CON.`;
-        } else {
-            res.door = last; // Cân bằng thì đánh theo ván cuối
-            res.rate = 0.5;
-            res.reason = `10 ván gần nhất cân bằng. Đánh nối tiếp ván cuối (${NAME[last]}).`;
-        }
-    }
-
-    // Đảm bảo rate không quá ảo
-    if (res.rate > 0.65) res.rate = 0.65;
-    if (res.rate < 0.45) res.rate = 0.45;
-
-    return res;
+// 4. Đưa ra dự đoán cuối cùng
+function predict(){
+ const f=seqF(),det=detect(f),est={...BASE};let reason='',badge=det?det.name:'',door='B',info=null;
+ 
+ // A. Nếu có cầu rõ ràng -> Ưu tiên phân tích cầu (Bệt, 1-1, 1-2)
+ if(det){
+  const {cnt,n}=ctxStats(2); // Lấy mẫu 2 ván gần nhất
+  est.B=(cnt.B+120*BASE.B)/(n+120);
+  est.P=(cnt.P+120*BASE.P)/(n+120);
+  est.T=(cnt.T+120*BASE.T)/(n+120);
+  info={n,eC:est[det.cont],eX:est[det.brk],eT:est.T};
+  door=est.B>=est.P?'B':'P';
+  reason=(door===det.cont?'Theo cầu ':'Bẻ cầu ')+NAME[door]+'. ';
+  if(det.warn)reason+=' ⚠ Bệt dài, cân nhắc bẻ cầu.';
+ } 
+ // B. Nếu không có cầu -> Dùng Markov bậc 2-3 (Dựa trên code Claude)
+ else if(f.length){
+  let k=Math.min(3,f.length);
+  const {cnt,n}=ctxStats(k);
+  for(const o of'BPT')est[o]=(cnt[o]+120*BASE[o])/(n+120);
+  door=est.B>=est.P?'B':'P';
+  badge='Markov bậc '+k;
+  reason=`Dựa trên Markov: sau "${f.slice(-k).map(x=>NAME[x]).join('-')}" đã ra ${NAME.B} ${cnt.B}, ${NAME.P} ${cnt.P}, ${NAME.T} ${cnt.T}.`;
+ } 
+ // C. Nếu chưa có gì -> Xác suất gốc
+ else{
+  door='B';reason='Chưa có ván nào, dùng xác suất gốc 8 bộ bài.';
+ }
+ 
+ return{door,p:est[door],t:est.T,reason,badge,det,info}
 }
 
 // ==========================================
-// GIAO DIỆN (UI)
+// XỬ LÝ THÊM VÁN
 // ==========================================
-function render() {
-    let a = analyze();
-    
-    $('cnt').innerText = `${H.length}/${CAP} ván`;
-    
-    $('door').innerText = NAME[a.door];
-    $('door').style.color = `var(--${a.door})`;
-    
-    $('pct').innerText = pc(a.rate);
-    $('tie').innerText = `Tỉ lệ Hòa: ${pc(a.tie)}`;
-    $('why').innerHTML = `<b>Lý do:</b> ${a.reason}`;
-
-    $('beads').innerHTML = H.map(x => `<div class="d ${x}">${x}</div>`).join('');
+function addHand(r){
+ H.push(r);
+ if(H.length>CAP) H.shift();
+ save();
 }
-
-function add(r) {
-    H.push(r);
-    if (H.length > CAP) H.shift(); // Chỉ giữ tối đa 60 ván
-    render();
-    checkEdge();
-}
-
-function checkEdge() {
-    // Nếu vượt quá 60 ván, cảnh báo nên xáo bài
-    if (H.length === CAP) {
-        toast("Đã đạt 60 ván. Hộp bài có thể sắp hết, hãy Xáo bài mới!");
-    }
-}
-
-let tt; 
-function toast(m) {
-    const t = $('toast');
-    t.textContent = m;
-    t.classList.add('on');
-    clearTimeout(tt);
-    tt = setTimeout(() => t.classList.remove('on'), 3500);
-}
-
-// Bắt sự kiện nút bấm
-document.querySelectorAll('.k').forEach(b => b.onclick = () => add(b.dataset.r));
-$('undo').onclick = () => { H.pop(); render(); };
-$('rs').onclick = () => { if(confirm('Xóa lịch sử để bắt đầu hộp bài mới?')) { H = []; render(); } };
+function undo(){if(H.length>0){H.pop();save();}}
 
 // ==========================================
-// QUÉT ẢNH TỰ ĐỘNG (TỪ CODE CLAUDE)
+// GIAO DIỆN
+// ==========================================
+function render(){
+ const p=predict();
+ $('cnt').textContent=`Ván ${H.length}/${CAP}`;
+ $('door').textContent=NAME[p.door].toUpperCase();$('door').style.color=`var(--${p.door})`;
+ $('pct').textContent=pc(p.p);$('tie').textContent='Hòa '+pc(p.t);
+ const b=$('badge');b.style.display=p.badge?'inline-block':'none';b.textContent=p.badge?'Cầu: '+p.badge:'';
+ $('why').textContent='Lý do: '+p.reason;
+ 
+ const pr=$('pr'),I=p.info;
+ if(I){
+  pr.style.display='flex';
+  pr.innerHTML=`<div><small>TIẾP TỤC CẦU</small><b>${pc(I.eC)}</b></div><div><small>BẺ CẦU</small><b>${pc(I.eX)}</b></div><div><small>HÒA</small><b>${pc(I.eT)}</b></div>`;
+  $('tag').textContent=I.n<30?`Ít dữ liệu (${I.n} lần): số này gần như là xác suất gốc.`:'Đã học đủ mẫu.';
+ } else {
+  pr.style.display='none';$('tag').textContent=''
+ }
+ 
+ $('beads').innerHTML=H.map(e=>`<div class="d ${e}">${e}</div>`).join('');
+ 
+ // Cập nhật bảng thống kê cầu
+ let statH='';
+ const L=[['Bệt >=4','bet'],['1-1','pp'],['1-2 / 2-1','p12']];
+ L.forEach(([nm,key])=>{
+   const {cnt,n}=ctxStats(2); // Chỉ đếm mẫu 2 ván cho đơn giản
+   statH+=`<div class="rw"><b>${nm}</b>: `+(n?`Tỉ lệ xuất hiện ${pc(n/H.length)}`:'<span style="color:var(--mu)">Chưa đủ dữ liệu</span>')+'</div>';
+ });
+ $('stat').innerHTML=statH;
+}
+
+let tt;function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),3500)}
+
+document.querySelectorAll('.k').forEach(b=>b.onclick=()=>{addHand(b.dataset.r);});
+$('undo').onclick=()=>{undo();};
+$('rs').onclick=()=>{if(confirm('Xáo bài mới? Lịch sử hiện tại sẽ bị xóa.')){H=[];save();toast('Đã xáo bài mới')}};
+
+// ==========================================
+// QUÉT ẢNH (GIỮ NGUYÊN CODE CLAUDE)
 // ==========================================
 function detectBeads(data,W,H_){
  const N=W*H_,code=new Uint8Array(N);
@@ -230,18 +234,14 @@ function detectBeads(data,W,H_){
  return{seq,n:beads.length}}
 
 function mergeSeq(seq){
- const current = H;
- let m=Math.min(seq.length,current.length);
- for(;m>0;m--){if(current.slice(-m).join('')===seq.slice(0,m).join(''))break}
- if(m===0 && current.length>0 && seq.length>0){
-  if(confirm('Ảnh không khớp lịch sử hiện tại. OK: Thay thế bằng ảnh. Hủy: Nối thêm vào cuối.')) H=[];
+ const cur=H;
+ let m=Math.min(seq.length,cur.length);
+ for(;m>0;m--){if(cur.slice(-m).join('')===seq.slice(0,m).join(''))break}
+ if(m===0&&cur.length&&seq.length){
+  if(confirm('Ảnh không khớp lịch sử hiện tại. OK: Thay thế bằng ảnh. Hủy: Nối thêm vào cuối.'))H=[];
  }
- const addArr = seq.slice(m);
- addArr.forEach(r => { H.push(r); });
- if(H.length > CAP) H = H.slice(-CAP);
- render();
- return addArr.length;
-}
+ const add=seq.slice(m);add.forEach(addHand);
+ return add.length}
 
 $('up').onclick=()=>$('file').click();
 $('file').onchange=e=>{
