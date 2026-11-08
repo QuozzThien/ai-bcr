@@ -1,206 +1,179 @@
 <!DOCTYPE html>
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>BCR – Theo dõi cầu</title>
+<title>BCR – Bảng cầu</title>
 <style>
 :root{--bg:#f3f4f8;--card:#fff;--tx:#1b1f2a;--mu:#6b7280;--bd:#e3e6ee;--B:#c62828;--P:#1565c0;--T:#558b2f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10131a;--card:#1a1f2b;--tx:#e8eaf0;--mu:#9aa3b2;--bd:#2a3140;--B:#e53935;--P:#1e88e5;--T:#7cb342}}
 :root[data-theme="dark"]{--bg:#10131a;--card:#1a1f2b;--tx:#e8eaf0;--mu:#9aa3b2;--bd:#2a3140;--B:#e53935;--P:#1e88e5;--T:#7cb342}
 *{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
-body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:10px;max-width:520px;margin-inline:auto}
-.hero{border-radius:16px;padding:16px;color:#fff;text-align:center;background:var(--mu);transition:background .2s}
-.hero .l{font-size:14px;opacity:.9}.hero .big{font-size:56px;font-weight:800;line-height:1.05;letter-spacing:1px}.hero .p{font-size:20px;font-weight:700}
-.hero .s{font-size:14px;margin-top:8px;opacity:.95}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:10px;max-width:560px;margin-inline:auto}
+.hero{border-radius:16px;padding:14px;color:#fff;text-align:center;background:var(--mu)}
+.hero .big{font-size:48px;font-weight:800;line-height:1.05}.hero .p{font-size:16px;font-weight:700}.hero .s{font-size:14px;margin-top:6px}
 .note{font-size:12.5px;color:var(--mu);background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 10px;margin:8px 0}
-.mini{display:flex;justify-content:space-between;margin:8px 2px;font-size:14px;color:var(--mu)}
-.mini b{color:var(--tx)}
-.row{display:flex;gap:8px}
-.k{flex:1;border:0;border-radius:14px;color:#fff;font-size:26px;font-weight:800;padding:20px 0;cursor:pointer;touch-action:manipulation}
-.k:active{filter:brightness(.85)}
-.kB{background:var(--B)}.kP{background:var(--P)}.kT{background:var(--T)}
-.sec{display:flex;gap:8px;margin-top:8px}
-.sec button{flex:1;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:10px 4px;font-size:14px;cursor:pointer}
-.sec button:active{opacity:.7}
-.strip{display:flex;gap:3px;margin:10px 0;overflow:hidden;justify-content:flex-end}
-.d{flex:0 0 22px;height:22px;border-radius:50%;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
-.d.B{background:var(--B)}.d.P{background:var(--P)}.d.T{background:var(--T)}
-details{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px;margin-top:10px}summary{color:var(--mu);font-size:14px;font-weight:bold;cursor:pointer}
-.tw{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}th,td{text-align:right;padding:4px;white-space:nowrap}th:first-child,td:first-child{text-align:left}
-.mu{color:var(--mu);font-size:13px}
-input,select{width:100%;padding:10px;margin:5px 0 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font-size:14px}
-.btn{border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:10px;width:100%;cursor:pointer;margin-top:6px;font-size:14px}
-.btn.pri{background:#3498db;color:#fff;border:0;font-weight:bold}
-#ai{font-size:14px;margin-top:8px;padding:8px 10px;border-radius:10px;border:1px solid var(--bd);background:var(--card);display:none;white-space:pre-wrap}
+.row,.sec{display:flex;gap:8px}.sec{margin-top:8px}
+.k{flex:1;border:0;border-radius:14px;color:#fff;font-size:24px;font-weight:800;padding:18px 0;touch-action:manipulation}
+.k:active{filter:brightness(.85)}.kB{background:var(--B)}.kP{background:var(--P)}.kT{background:var(--T)}
+.sec button,.btn{flex:1;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:10px 4px;font-size:14px}
+.btn{width:100%;margin-top:6px}.btn.pri{background:#3498db;color:#fff;border:0;font-weight:700}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:8px;margin-top:10px}
+.mu{color:var(--mu);font-size:13px}.t{font-weight:700;font-size:14px;margin-bottom:4px}
+.bd{overflow-x:auto;border:1px solid var(--bd);border-radius:8px;background:var(--bg)}
+svg{display:block}.g{stroke:var(--bd);stroke-width:1}
+.fB{fill:var(--B)}.fP{fill:var(--P)}.fT{fill:var(--T)}.tx{fill:#fff;font-weight:700;text-anchor:middle}
+.rB{stroke:var(--B);fill:none}.rP{stroke:var(--P);fill:none}.sB{stroke:var(--B)}.sP{stroke:var(--P)}.sT{stroke:var(--T)}
+details{margin-top:10px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px}summary{color:var(--mu);font-weight:700;font-size:14px}
+input{width:100%;padding:10px;margin:5px 0 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font-size:14px}
+#ai{display:none;font-size:14px;margin-top:8px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;background:var(--card);white-space:pre-wrap}
 #msg{font-size:13px;text-align:center;margin-top:6px;min-height:18px;color:var(--mu)}
 canvas{display:none}
 </style></head><body>
-
-<div class="hero" id="hero">
- <div class="l">Gợi ý theo cầu (ván tiếp theo)</div>
- <div class="big" id="pk">–</div><div class="p" id="pp"></div>
- <div class="s" id="sub"></div>
-</div>
-<div class="note">Mỗi ván Baccarat độc lập: không kiểu cầu nào làm tăng tỷ lệ thắng. Xác suất bên trên là xác suất thật của bàn 8 bộ bài, không phải “độ tự tin”. Lợi thế nhà cái: Cái 1,06% · Con 1,24% · Hòa 14,36%.</div>
-<div class="mini"><span>Con <b id="eP">–</b></span><span>Hòa <b id="eT">–</b></span><span>Cái <b id="eB">–</b></span></div>
-
+<div class="hero" id="hero"><div class="mu" style="color:#fff;opacity:.9">Gợi ý theo cầu</div><div class="big" id="pk">–</div><div class="p" id="pp"></div><div class="s" id="sub"></div></div>
+<div class="note">Mỗi ván độc lập: không cầu nào tăng tỷ lệ thắng. Xác suất hiển thị là xác suất thật (Cái 45,86% · Con 44,62% · Hòa 9,52%), không phải độ tự tin. Nhà cái luôn có lợi thế.</div>
 <div class="row"><button class="k kB" onclick="add('B')">CÁI</button><button class="k kT" onclick="add('T')">HÒA</button><button class="k kP" onclick="add('P')">CON</button></div>
-<div class="sec">
- <button onclick="$('f').click()">Quét ảnh</button>
- <button onclick="undo()">Hoàn tác</button>
- <button onclick="askAI()">Hỏi AI</button>
-</div>
+<div class="sec"><button onclick="$('f').click()">Quét ảnh</button><button onclick="undo()">Hoàn tác</button><button onclick="askAI()">Hỏi AI</button></div>
 <input id="f" type="file" accept="image/*" hidden>
-<div id="msg"></div>
-<div id="ai"></div>
-<div class="strip" id="strip"></div>
+<div id="msg"></div><div id="ai"></div>
 
-<details>
-<summary>Kiểm tra tính ngẫu nhiên</summary>
- <div class="mu" id="rt" style="margin-top:8px"></div>
- <div class="mu" id="cnt" style="margin-top:4px"></div>
-</details>
+<div class="card"><div class="t">Bảng cầu lớn (Big Road)</div><div class="bd" id="big"></div><div class="mu" id="pat" style="margin-top:6px"></div><div class="mu" id="ask"></div></div>
+<div class="card"><div class="t">Bảng bi (Bead Plate)</div><div class="bd" id="bead"></div></div>
+<div class="card"><div class="t">Mắt (Big Eye Boy)</div><div class="bd" id="eye"></div></div>
+<div class="card"><div class="t">Nhỏ (Small Road)</div><div class="bd" id="sml"></div></div>
+<div class="card"><div class="t">Gián (Cockroach Pig)</div><div class="bd" id="roach"></div></div>
+<div class="mu" style="margin-top:6px">Quét 1 ảnh chỉ đọc Bảng bi, 4 bảng còn lại tự tính từ đó. Nếu ảnh chỉ có vài chục ván cuối thì Mắt/Nhỏ/Gián có thể lệch so với bàn thật.</div>
 
-<details>
-<summary>Cài đặt AI</summary>
- <label class="mu">Nhà cung cấp</label>
- <select id="aiProvider"><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="groq">Groq</option></select>
- <label class="mu">Model (đổi được khi nhà cung cấp ngừng model cũ)</label>
- <input type="text" id="aiModel">
- <label class="mu">API Key</label>
- <input type="password" id="apiKey" placeholder="Dán API Key..." autocomplete="off">
- <label class="mu"><input type="checkbox" id="autoAI" style="width:auto;margin:0 6px 0 0">Tự gọi AI sau mỗi ván (tốn quota)</label>
- <div class="mu" id="apiHelp" style="margin:8px 0"></div>
+<details><summary>Cài đặt DeepSeek</summary>
+ <label class="mu">API Key (platform.deepseek.com)</label><input type="password" id="apiKey" autocomplete="off" placeholder="sk-...">
+ <label class="mu">Model</label><input type="text" id="aiModel">
+ <label class="mu"><input type="checkbox" id="autoAI" style="width:auto;margin:0 6px 0 0">Tự gọi AI sau mỗi ván</label>
  <button class="btn pri" onclick="saveApi()">Lưu cài đặt</button>
- <div class="mu" style="margin-top:6px">Key chỉ lưu trên trình duyệt của bạn và gửi thẳng tới nhà cung cấp.</div>
 </details>
-
-<details>
-<summary>Chi tiết thuật toán</summary>
- <div class="mu" id="ctx" style="margin-top:10px"></div>
- <div class="tw"><table><thead><tr><th></th><th>Gốc</th><th>Đã ra</th><th>Ước lượng</th><th>KTC 95%</th></tr></thead><tbody id="tb"></tbody></table></div>
- <button class="btn" onclick="exportH()">Sao chép lịch sử</button>
- <button class="btn" onclick="importH()">Nhập lịch sử</button>
- <button class="btn" onclick="clr()">Xóa toàn bộ lịch sử</button>
+<details><summary>Kiểm tra ngẫu nhiên và dữ liệu</summary>
+ <div class="mu" id="rt" style="margin-top:8px"></div><div class="mu" id="cnt"></div>
+ <button class="btn" onclick="exportH()">Sao chép lịch sử</button><button class="btn" onclick="importH()">Nhập lịch sử</button><button class="btn" onclick="clr()">Xóa lịch sử</button>
 </details>
 <canvas id="cv"></canvas>
-
 <script>
 const BASE={B:.4586,P:.4462,T:.0952},NAME={B:'Cái',P:'Con',T:'Hòa'},CAP=200;
-const DEF={gemini:'gemini-2.5-flash',openai:'gpt-4o-mini',groq:'llama-3.3-70b-versatile'};
-const HELP={gemini:'Key miễn phí: aistudio.google.com',openai:'Key: platform.openai.com',groq:'Key miễn phí: console.groq.com'};
-const $=id=>document.getElementById(id),pc=v=>(100*v).toFixed(1)+'%';
+const $=id=>document.getElementById(id),pc=v=>(100*v).toFixed(2)+'%';
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-
-let H=ls.get('bcrH',[]);
-if(!Array.isArray(H))H=[];H=H.filter(x=>x==='B'||x==='P'||x==='T');
-let cfg=Object.assign({provider:'gemini',key:'',model:'',auto:false},ls.get('bcrAiConfig',{}));
-
-function say(t,ms=3000){$('msg').textContent=t;if(ms)setTimeout(()=>{if($('msg').textContent===t)$('msg').textContent=''},ms)}
-function fillCfg(){$('aiProvider').value=cfg.provider;$('aiModel').value=cfg.model||DEF[cfg.provider];$('apiKey').value=cfg.key;$('autoAI').checked=cfg.auto;$('apiHelp').textContent=HELP[cfg.provider]}
-fillCfg();
-$('aiProvider').onchange=()=>{$('aiModel').value=DEF[$('aiProvider').value];$('apiHelp').textContent=HELP[$('aiProvider').value]};
-function saveApi(){cfg={provider:$('aiProvider').value,key:$('apiKey').value.trim(),model:$('aiModel').value.trim()||DEF[$('aiProvider').value],auto:$('autoAI').checked};ls.set('bcrAiConfig',cfg);say('Đã lưu cài đặt AI.')}
-
+let H=ls.get('bcrH',[]);if(!Array.isArray(H))H=[];H=H.filter(x=>'BPT'.includes(x)&&x.length===1);
+let cfg=Object.assign({key:'',model:'deepseek-chat',auto:false},ls.get('bcrDs',{}));
+$('apiKey').value=cfg.key;$('aiModel').value=cfg.model;$('autoAI').checked=cfg.auto;
+function say(t,ms=3500){$('msg').textContent=t;if(ms)setTimeout(()=>{if($('msg').textContent===t)$('msg').textContent=''},ms)}
+function saveApi(){cfg={key:$('apiKey').value.trim(),model:$('aiModel').value.trim()||'deepseek-chat',auto:$('autoAI').checked};ls.set('bcrDs',cfg);say('Đã lưu.')}
 function save(){H=H.slice(-CAP);ls.set('bcrH',H);render()}
 function add(x){H.push(x);save();if(cfg.auto)askAI(true)}
-function undo(){if(H.length){H.pop();save()}else say('Chưa có ván nào.')}
+function undo(){H.length?(H.pop(),save()):say('Chưa có ván nào.')}
 function clr(){if(confirm('Xóa toàn bộ lịch sử?')){H=[];$('ai').style.display='none';save()}}
-function exportH(){const s=H.join('');(navigator.clipboard?navigator.clipboard.writeText(s):Promise.reject()).then(()=>say('Đã sao chép: '+(s||'(trống)')),()=>prompt('Sao chép chuỗi:',s))}
-function importH(){const s=(prompt('Dán chuỗi B/P/T (vd: BPPTB):')||'').toUpperCase().replace(/[^BPT]/g,'');if(!s)return;H=[...s];save();say('Đã nhập '+s.length+' ván.')}
+function exportH(){const s=H.join('');(navigator.clipboard?navigator.clipboard.writeText(s):Promise.reject()).then(()=>say('Đã sao chép.'),()=>prompt('Sao chép:',s))}
+function importH(){const s=(prompt('Dán chuỗi B/P/T:')||'').toUpperCase().replace(/[^BPT]/g,'');if(s){H=[...s];save()}}
 
-function wilson(c,n){if(!n)return[0,1];const z=1.96,p=c/n,d=1+z*z/n,m=p+z*z/(2*n),s=z*Math.sqrt(p*(1-p)/n+z*z/(4*n*n));return[(m-s)/d,(m+s)/d]}
+// ===== Big Road + bảng phụ =====
+function place(seq){const cells=new Map(),out=[],L=[];let x=0,y=0,sx=0,last=null,tail=false,lc=null;
+ for(const r of seq){
+  if(r==='T'){if(lc)lc.t++;continue}
+  if(last===null){L.push([r])}
+  else if(r===last){L[L.length-1].push(r);if(!tail&&y<5&&!cells.has(x+','+(y+1)))y++;else{x++;tail=true}}
+  else{L.push([r]);sx++;x=sx;y=0;tail=false}
+  lc={x,y,s:r,t:0};cells.set(x+','+y,lc);out.push(lc);last=r}
+ return{cells:out,L}}
+function derived(L,k){const m=[];
+ for(let c=k;c<L.length;c++)for(let r=c===k?1:0;r<L[c].length;r++){
+  if(r===0)m.push(L[c-1].length===L[c-1-k].length?'B':'P');
+  else m.push(L[c-k].length===r?'P':'B')}
+ return m}
+function svg(cells,cw,minC,shape){const W=Math.max(minC,...cells.map(c=>c.x+1))*cw,Hh=6*cw;let s=`<svg width="${W}" height="${Hh}">`;
+ for(let i=0;i<=W/cw;i++)s+=`<line x1="${i*cw}" y1="0" x2="${i*cw}" y2="${Hh}" class="g"/>`;
+ for(let j=0;j<=6;j++)s+=`<line x1="0" y1="${j*cw}" x2="${W}" y2="${j*cw}" class="g"/>`;
+ for(const c of cells){const cx=c.x*cw+cw/2,cy=c.y*cw+cw/2,r=cw*.36;
+  if(shape==='bead')s+=`<circle cx="${cx}" cy="${cy}" r="${r}" class="f${c.s}"/><text x="${cx}" y="${cy+r*.4}" class="tx" font-size="${r*1.1}">${c.s}</text>`;
+  else if(shape==='ring')s+=`<circle cx="${cx}" cy="${cy}" r="${r*.9}" class="r${c.s}" stroke-width="${Math.max(1.5,cw*.1)}"/>`;
+  else if(shape==='dot')s+=`<circle cx="${cx}" cy="${cy}" r="${r*.75}" class="f${c.s}"/>`;
+  else s+=`<line x1="${cx-r*.8}" y1="${cy+r*.8}" x2="${cx+r*.8}" y2="${cy-r*.8}" class="s${c.s}" stroke-width="${Math.max(1.5,cw*.12)}"/>`;
+  if(c.t)s+=`<line x1="${cx-r}" y1="${cy+r}" x2="${cx+r}" y2="${cy-r}" class="sT" stroke-width="${cw*.08}"/>`+(c.t>1?`<text x="${cx}" y="${cy+r*.4}" class="tx" font-size="${r*.9}" style="fill:var(--T)">${c.t}</text>`:'')}
+ return s+'</svg>'}
+function draw(id,html){const e=$(id);e.innerHTML=html;e.scrollLeft=e.scrollWidth}
 
-// Gợi ý theo cầu: chỉ là quy tắc thói quen, KHÔNG có lợi thế thống kê
-function getPattern(){
-  const seq=H.filter(r=>r!=='T');
-  if(!seq.length)return{door:'B',reason:'Chưa có dữ liệu. Mặc định Cái (xác suất cao nhất).'};
-  const last=seq[seq.length-1],other=last==='B'?'P':'B';let streak=1;
-  for(let i=seq.length-2;i>=0&&seq[i]===last;i--)streak++;
-  if(streak>=4)return{door:other,reason:`Cầu bệt ${streak} tay → gợi ý bẻ cầu.`};
-  if(seq.length>=4&&seq.slice(-4).every((x,i,a)=>i===0||x!==a[i-1]))return{door:other,reason:'Cầu 1-1 → gợi ý bám nhịp.'};
-  const rec=seq.slice(-15),key=rec.slice(-2).join(''),c={B:0,P:0};
-  for(let i=2;i<rec.length;i++)if(rec.slice(i-2,i).join('')===key)c[rec[i]]++;
-  if(c.B+c.P>=3&&c.B!==c.P){const d=c.B>c.P?'B':'P';return{door:d,reason:`Mẫu 2 tay gần nhất đã ra ${NAME[d]} nhiều hơn (${c[d]}/${c.B+c.P}).`}}
-  const b=rec.filter(x=>x==='B').length,p=rec.length-b;
-  if(b!==p){const d=b>p?'B':'P';return{door:d,reason:`Xu hướng ${NAME[d]} trong ${rec.length} ván gần nhất.`}}
-  return{door:last,reason:'Cân bằng, giữ cửa vừa ra.'};
-}
-
-// Runs test (Wald–Wolfowitz) trên chuỗi Cái/Con
-function runsTest(){
-  const s=H.filter(x=>x!=='T'),n=s.length;if(n<20)return`Cần ít nhất 20 ván Cái/Con (hiện có ${n}).`;
-  const n1=s.filter(x=>x==='B').length,n2=n-n1;if(!n1||!n2)return'Chuỗi chỉ có một cửa.';
-  let R=1;for(let i=1;i<n;i++)if(s[i]!==s[i-1])R++;
-  const mu=2*n1*n2/n+1,v=(mu-1)*(mu-2)/(n-1),z=(R-mu)/Math.sqrt(v);
-  return`${R} đoạn (kỳ vọng ${mu.toFixed(1)}), z = ${z.toFixed(2)}. `+(Math.abs(z)<1.96?'Chuỗi phù hợp với ngẫu nhiên: không có “cầu” để khai thác.':'Lệch khỏi ngẫu nhiên ở mức 95%, nhưng với ít dữ liệu hoặc nhiều lần thử thì vẫn dễ là trùng hợp.');
-}
-
-function getCtxStats(k){const cnt={B:0,P:0,T:0};let n=0;if(H.length<=k)return{cnt,n};const key=H.slice(-k).join('');for(let i=k;i<H.length;i++)if(H.slice(i-k,i).join('')===key){cnt[H[i]]++;n++}return{cnt,n}}
-function estimate(cnt,n,m=150){const e={};for(const o of'BPT')e[o]=(cnt[o]+m*BASE[o])/(n+m);return e}
+function pattern(){const L=place(H).L;if(!L.length)return{door:'B',name:'–',reason:'Chưa có dữ liệu, mặc định Cái.'};
+ const n=L.map(c=>c.length),m=n.length,ln=n[m-1],last=L[m-1][0],opp=last==='B'?'P':'B',t4=n.slice(-4).join('');
+ let name,door;
+ if(ln>=4){name='Bệt '+ln;door=last}
+ else if(m>=4&&t4==='1111'){name='1-1';door=opp}
+ else if(m>=4&&t4==='2222'){name='2-2';door=ln===2?opp:last}
+ else if(m>=4&&(t4==='1212'||t4==='2121')){name=t4==='1212'?'1-2':'2-1';door=opp}
+ else{name='Chưa rõ';door=last}
+ return{door,name,reason:name==='Chưa rõ'?'Chưa có cầu rõ, giữ cửa vừa ra.':`Cầu ${name} → theo cầu: ${NAME[door]}.`}}
+function askRoad(){const L1=place(H).L,res={};
+ for(const s of'BP'){const L2=place([...H,s]).L;res[s]=[1,2,3].map(k=>{const a=derived(L1,k),b=derived(L2,k);return b.length>a.length?(b[b.length-1]==='B'?'🔴':'🔵'):'–'}).join(' ')}
+ return`Hỏi cầu (Mắt/Nhỏ/Gián): nếu ra Cái → ${res.B} · nếu ra Con → ${res.P}`}
+function runsTest(){const s=H.filter(x=>x!=='T'),n=s.length;if(n<20)return`Cần ≥20 ván Cái/Con (có ${n}).`;
+ const n1=s.filter(x=>x==='B').length,n2=n-n1;if(!n1||!n2)return'Chuỗi chỉ có một cửa.';
+ let R=1;for(let i=1;i<n;i++)if(s[i]!==s[i-1])R++;
+ const mu=2*n1*n2/n+1,z=(R-mu)/Math.sqrt((mu-1)*(mu-2)/(n-1));
+ return`${R} đoạn (kỳ vọng ${mu.toFixed(1)}), z=${z.toFixed(2)}. `+(Math.abs(z)<1.96?'Phù hợp ngẫu nhiên: không có cầu để khai thác.':'Lệch ngẫu nhiên, nhưng với ít dữ liệu vẫn dễ là trùng hợp.')}
 
 function render(){
-  const pr=getPattern();
-  $('hero').style.background=`var(--${pr.door})`;
-  $('pk').textContent=NAME[pr.door].toUpperCase();
-  $('pp').textContent='Xác suất thật: '+pc(BASE[pr.door]);
-  $('sub').textContent=pr.reason;
-  $('eB').textContent=pc(BASE.B);$('eP').textContent=pc(BASE.P);$('eT').textContent=pc(BASE.T);
-  $('strip').innerHTML=H.slice(-15).map(x=>`<div class="d ${x}">${x}</div>`).join('');
-  const k=Math.min(2,H.length),{cnt,n}=getCtxStats(k),est=estimate(cnt,n);
-  $('ctx').textContent=`Tổng ${H.length} ván. Ngữ cảnh ${k} tay gần nhất, làm mượt về tỷ lệ gốc.`;
-  $('tb').innerHTML=[...'BPT'].map(o=>{const[lo,hi]=wilson(cnt[o],n);return`<tr><td style="color:var(--${o})">${NAME[o]}</td><td>${pc(BASE[o])}</td><td>${n?cnt[o]+'/'+n:'–'}</td><td><b>${pc(est[o])}</b></td><td>${n?pc(lo)+'–'+pc(hi):'–'}</td></tr>`}).join('');
-  const c={B:0,P:0,T:0};H.forEach(x=>c[x]++);
-  $('cnt').textContent=`Đã ra: Cái ${c.B} · Con ${c.P} · Hòa ${c.T}`;
-  $('rt').textContent=runsTest();
-}
+ const P=pattern(),R=place(H);
+ $('hero').style.background=`var(--${P.door})`;$('pk').textContent=NAME[P.door].toUpperCase();
+ $('pp').textContent='Xác suất thật: '+pc(BASE[P.door]);$('sub').textContent=P.reason;
+ draw('big',svg(R.cells,30,14,'ring'));
+ draw('bead',svg(H.map((s,i)=>({x:Math.floor(i/6),y:i%6,s,t:0})),30,14,'bead'));
+ draw('eye',svg(place(derived(R.L,1)).cells,18,24,'ring'));
+ draw('sml',svg(place(derived(R.L,2)).cells,18,24,'dot'));
+ draw('roach',svg(place(derived(R.L,3)).cells,18,24,'slash'));
+ $('pat').textContent='Cầu đang chạy: '+P.name+' · '+R.L.length+' cột';$('ask').textContent=askRoad();
+ const c={B:0,P:0,T:0};H.forEach(x=>c[x]++);$('cnt').textContent=`Cái ${c.B} · Con ${c.P} · Hòa ${c.T} (tổng ${H.length})`;$('rt').textContent=runsTest()}
 
-// ===== AI =====
+// ===== DeepSeek =====
 let aiTok=0,aiCtl=null;
 async function askAI(silent){
-  if(!cfg.key){if(!silent)say('Nhập API Key trong Cài đặt AI trước.');return}
-  if(H.length<3){if(!silent)say('Cần ít nhất 3 ván.');return}
-  if(aiCtl)aiCtl.abort();aiCtl=new AbortController();const tok=++aiTok;
-  const box=$('ai');box.style.display='block';box.textContent='Đang hỏi AI...';
-  const prompt=`Chuỗi Baccarat (B=Cái, P=Con, T=Hòa): ${H.slice(-40).join(' ')}. Nhận xét ngắn về nhịp cầu và nêu cửa thường được gợi ý, nhưng nói rõ mỗi ván độc lập. Tối đa 3 câu, tiếng Việt.`;
-  const m=cfg.model||DEF[cfg.provider];
-  try{
-    let url,opt={method:'POST',signal:aiCtl.signal,headers:{'Content-Type':'application/json'}},text;
-    if(cfg.provider==='gemini'){
-      url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`;
-      opt.headers['x-goog-api-key']=cfg.key;opt.body=JSON.stringify({contents:[{parts:[{text:prompt}]}]});
-    }else{
-      url=cfg.provider==='openai'?'https://api.openai.com/v1/chat/completions':'https://api.groq.com/openai/v1/chat/completions';
-      opt.headers.Authorization='Bearer '+cfg.key;opt.body=JSON.stringify({model:m,messages:[{role:'user',content:prompt}]});
-    }
-    const res=await fetch(url,opt),data=await res.json();
-    if(data.error)throw new Error(data.error.message||'Lỗi API');
-    text=cfg.provider==='gemini'?data.candidates?.[0]?.content?.parts?.map(p=>p.text).join(''):data.choices?.[0]?.message?.content;
-    if(!text)throw new Error('AI không trả về nội dung.');
-    if(tok===aiTok)box.textContent='🤖 '+text.trim();
-  }catch(e){if(e.name!=='AbortError'&&tok===aiTok)box.textContent='Lỗi AI: '+e.message}
-}
+ if(!cfg.key){if(!silent)say('Nhập API Key DeepSeek trong Cài đặt.');return}
+ if(H.length<3){if(!silent)say('Cần ít nhất 3 ván.');return}
+ if(aiCtl)aiCtl.abort();aiCtl=new AbortController();const tok=++aiTok,box=$('ai');box.style.display='block';box.textContent='Đang hỏi DeepSeek...';
+ const P=pattern(),prompt=`Chuỗi Baccarat (B=Cái, P=Con, T=Hòa): ${H.slice(-40).join(' ')}. Cầu đang chạy: ${P.name}. Nhận xét ngắn nhịp cầu và nêu cửa theo cầu, nhưng nói rõ mỗi ván độc lập. Tối đa 3 câu tiếng Việt.`;
+ try{
+  const res=await fetch('https://api.deepseek.com/chat/completions',{method:'POST',signal:aiCtl.signal,headers:{'Content-Type':'application/json',Authorization:'Bearer '+cfg.key},
+   body:JSON.stringify({model:cfg.model||'deepseek-chat',max_tokens:200,temperature:.3,messages:[{role:'system',content:'Bạn phân tích chuỗi Baccarat ngắn gọn, trung thực.'},{role:'user',content:prompt}]})});
+  const d=await res.json();if(d.error)throw new Error(d.error.message||'Lỗi API');
+  const t=d.choices?.[0]?.message?.content;if(!t)throw new Error('Không có nội dung trả về.');
+  if(tok===aiTok)box.textContent='🤖 '+t.trim()
+ }catch(e){if(e.name!=='AbortError'&&tok===aiTok)box.textContent='Lỗi AI: '+e.message}}
 
-// ===== Quét ảnh =====
-function hsv(r,g,b){r/=255;g/=255;b/=255;const M=Math.max(r,g,b),m=Math.min(r,g,b),d=M-m;let h=0;if(d){if(M===r)h=((g-b)/d)%6;else if(M===g)h=(b-r)/d+2;else h=(r-g)/d+4;h*=60;if(h<0)h+=360}return[h,M?d/M:0,M]}
-function cls(ctx,x,y,w,h){if(w<1||h<1)return null;const D=ctx.getImageData(x,y,w,h).data;let R=0,Bl=0,G=0;const n=D.length/4;
-  for(let i=0;i<D.length;i+=4){const[hh,s,v]=hsv(D[i],D[i+1],D[i+2]);if(s>.47&&v>.35){if(hh<15||hh>340)R++;else if(hh>200&&hh<250)Bl++;else if(hh>60&&hh<160)G++}}
-  const m=Math.max(R,Bl,G);if(m/n<.04)return null;return m===R?'B':m===Bl?'P':'T'}
-function readPlate(src,w,h){const cv=$('cv');cv.width=w;cv.height=h;const ctx=cv.getContext('2d',{willReadFrequently:true});ctx.drawImage(src,0,0,w,h);
-  const X=0,Y=h*.65,W=w*.3,Hh=h*.3,cw=W/6,ch=Hh/6,seq=[];
-  for(let c=0;c<6;c++)for(let r=0;r<6;r++){const k=cls(ctx,Math.round(X+c*cw),Math.round(Y+r*ch),Math.round(cw),Math.round(ch));if(!k)return seq;seq.push(k)}return seq}
+// ===== Quét ảnh nhanh: 1 lượt màu + flood fill, tự tìm bảng bi =====
+function clus(v,tol){const cs=[];for(const x of[...v].sort((a,b)=>a-b)){const l=cs[cs.length-1];if(l&&x-l.m<=tol){l.n++;l.m+=(x-l.m)/l.n}else cs.push({m:x,n:1})}return cs.map(c=>c.m)}
+const med=a=>{const s=[...a].sort((x,y)=>x-y);return s[s.length>>1]};
+async function scan(file){
+ const bmp=await createImageBitmap(file),sc=Math.min(1,480/bmp.width),w=Math.round(bmp.width*sc),h=Math.round(bmp.height*sc);
+ const cv=$('cv');cv.width=w;cv.height=h;const ctx=cv.getContext('2d',{willReadFrequently:true});ctx.drawImage(bmp,0,0,w,h);
+ const D=ctx.getImageData(0,0,w,h).data,M=new Uint8Array(w*h);
+ for(let i=0,p=0;i<D.length;i+=4,p++){const r=D[i],g=D[i+1],b=D[i+2],mx=Math.max(r,g,b),d=mx-Math.min(r,g,b);
+  if(mx<90||d<.47*mx)continue;let u;if(mx===r)u=((g-b)/d+6)%6*60;else if(mx===g)u=((b-r)/d+2)*60;else u=((r-g)/d+4)*60;
+  M[p]=(u<15||u>340)?1:(u>200&&u<250)?2:(u>60&&u<160)?3:0}
+ const V=new Uint8Array(w*h),C=[],st=[];
+ for(let p0=0;p0<M.length;p0++){const c=M[p0];if(!c||V[p0])continue;
+  let n=0,x0=w,x1=0,y0=h,y1=0;st.length=0;st.push(p0);V[p0]=1;
+  while(st.length){const p=st.pop(),x=p%w,y=(p/w)|0;n++;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
+   if(x>0&&M[p-1]===c&&!V[p-1]){V[p-1]=1;st.push(p-1)}if(x<w-1&&M[p+1]===c&&!V[p+1]){V[p+1]=1;st.push(p+1)}
+   if(y>0&&M[p-w]===c&&!V[p-w]){V[p-w]=1;st.push(p-w)}if(y<h-1&&M[p+w]===c&&!V[p+w]){V[p+w]=1;st.push(p+w)}}
+  const bw=x1-x0+1,bh=y1-y0+1,ar=bw/bh;
+  if(bw>=8&&bw<=40&&bh>=8&&bh<=40&&ar>.7&&ar<1.43&&n/(bw*bh)>.45)C.push({c,cx:(x0+x1)/2,cy:(y0+y1)/2,s:Math.max(bw,bh)})}
+ if(!C.length)return[];
+ const S=[...C].map(o=>o.s).sort((a,b)=>a-b)[Math.floor(C.length*.75)>=C.length?C.length-1:Math.floor(C.length*.75)];
+ const B=C.filter(o=>o.s>=.8*S&&o.s<=1.25*S);
+ const cx=clus(B.map(o=>o.cx),S*.5),cy=clus(B.map(o=>o.cy),S*.5);
+ const pit=a=>a.length<2?S*1.3:med(a.slice(1).map((v,i)=>v-a[i]));
+ const px=pit(cx),py=pit(cy);
+ B.forEach(o=>{o.col=Math.round((o.cx-cx[0])/px);o.row=Math.min(5,Math.max(0,Math.round((o.cy-cy[0])/py)))});
+ B.sort((a,b)=>a.col-b.col||a.row-b.row);
+ return B.map(o=>'BPT'[o.c-1])}
 function merge(seq){let m=Math.min(seq.length,H.length);for(;m>0;m--)if(H.slice(-m).join('')===seq.slice(0,m).join(''))break;
-  const a=seq.slice(m);H.push(...a);save();return a.length}
-
-$('f').onchange=e=>{
-  const f=e.target.files[0];if(!f)return;const url=URL.createObjectURL(f),im=new Image();
-  im.onload=()=>{URL.revokeObjectURL(url);
-    const s=readPlate(im,im.naturalWidth,im.naturalHeight);
-    if(!s.length){say('Không đọc được bảng cầu. Chụp rõ, thẳng, bảng nằm góc dưới trái.',5000);return}
-    const a=merge(s);say(a?`Đã thêm ${a} ván từ ảnh.`:'Ảnh không có ván mới.');
-    if(a&&cfg.auto)askAI(true)};
-  im.onerror=()=>{URL.revokeObjectURL(url);say('Không mở được ảnh.')};
-  im.src=url;e.target.value='';
-};
+ if(m>=4||!H.length){const a=seq.slice(m);H.push(...a);save();return a.length+' ván mới'}
+ H=seq.slice();save();return'thay lịch sử bằng '+seq.length+' ván trong ảnh'}
+$('f').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+ try{const t=performance.now(),s=await scan(f);
+  if(s.length<3){say('Không tìm thấy bảng bi. Chụp rõ, thẳng, thấy đủ bảng.',5000);return}
+  const r=merge(s);say(`Quét ${Math.round(performance.now()-t)}ms: ${r}.`,5000);if(cfg.auto)askAI(true)
+ }catch(err){say('Không đọc được ảnh: '+err.message,5000)}};
 render();
 </script></body></html>
