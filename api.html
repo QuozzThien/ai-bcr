@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>BCR – Gợi ý AI Vạn Năng</title>
+<title>BCR – AI Auto Predict</title>
 <style>
 :root{--bg:#f3f4f8;--card:#fff;--tx:#1b1f2a;--mu:#6b7280;--bd:#e3e6ee;--B:#c62828;--P:#1565c0;--T:#558b2f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10131a;--card:#1a1f2b;--tx:#e8eaf0;--mu:#9aa3b2;--bd:#2a3140;--B:#e53935;--P:#1e88e5;--T:#7cb342}}
@@ -27,7 +27,7 @@ table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}th,td{te
 .mu{color:var(--mu);font-size:13px}
 input[type="text"], input[type="password"], select {width:100%;padding:10px;margin-top:5px;margin-bottom:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font-size:14px;}
 canvas{display:none}
-.btn-ai{background:#8e44ad;color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:bold;width:100%;margin-top:10px;cursor:pointer;display:none;}
+#aiStatus{font-size:12px; color:#8e44ad; margin-top:5px; font-weight:bold; display:none; text-align:center;}
 </style></head><body>
 
 <div class="hero" id="hero">
@@ -39,22 +39,20 @@ canvas{display:none}
 
 <div class="row"><button class="k kB" onclick="add('B')">CÁI</button><button class="k kT" onclick="add('T')">HÒA</button><button class="k kP" onclick="add('P')">CON</button></div>
 <div class="sec">
-    <label>Quét ảnh (Cục bộ)<input id="f" type="file" accept="image/*" hidden></label>
+    <label>Quét ảnh<input id="f" type="file" accept="image/*" hidden></label>
     <button onclick="undo()">Hoàn tác</button>
 </div>
 
-<button id="btnAI" class="btn-ai">🤖 Phân tích bằng AI (Gửi ảnh)</button>
-
+<div id="aiStatus">🤖 AI đang suy luận ngầm...</div>
 <div class="strip" id="strip"></div>
-<div class="mu" style="text-align:center">Kết quả chỉ mang tính tham khảo.</div>
 
 <details>
-<summary>Cài đặt AI Vạn Năng (API Tùy chỉnh)</summary>
+<summary>Cài đặt AI (Tự động chạy khi bấm nút)</summary>
  <div style="margin-top:10px; padding:10px; background:var(--bg); border-radius:8px;">
     <label class="mu">Chọn nhà cung cấp AI:</label>
     <select id="aiProvider">
         <option value="gemini">Google Gemini (Miễn phí)</option>
-        <option value="openai">OpenAI (ChatGPT - Trả phí)</option>
+        <option value="openai">OpenAI (ChatGPT)</option>
         <option value="groq">Groq (Miễn phí, Tốc độ cao)</option>
     </select>
 
@@ -71,7 +69,6 @@ canvas{display:none}
 <summary>Chi tiết thuật toán</summary>
  <div class="mu" id="ctx" style="margin-top:10px"></div>
  <table><thead><tr><th></th><th>Gốc</th><th>Đã ra</th><th>Ước lượng</th><th>KTC 95%</th></tr></thead><tbody id="tb"></tbody></table>
- <div class="mu" id="bt" style="margin-top:6px"></div>
  <button onclick="clr()" style="margin-top:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:8px 12px;width:100%;">Xóa toàn bộ lịch sử</button>
 </details>
 <canvas id="cv"></canvas>
@@ -83,17 +80,15 @@ const $=id=>document.getElementById(id),pc=v=>(100*v).toFixed(1)+'%';
 let H=[];try{H=JSON.parse(localStorage.getItem('bcrH')||'[]')}catch(e){}
 let aiConfig = JSON.parse(localStorage.getItem('bcrAiConfig') || '{"provider":"gemini","key":""}');
 
-// Khởi tạo UI AI
 $('aiProvider').value = aiConfig.provider;
 $('apiKey').value = aiConfig.key;
 updateApiHelp();
-if(aiConfig.key) $('btnAI').style.display = 'block';
 
 function updateApiHelp() {
     const p = $('aiProvider').value;
     if(p === 'gemini') $('apiHelp').innerHTML = 'Lấy key miễn phí tại: aistudio.google.com';
-    if(p === 'openai') $('apiHelp').innerHTML = 'Lấy key tại: platform.openai.com (Cần thẻ Visa)';
-    if(p === 'groq') $('apiHelp').innerHTML = 'Lấy key miễn phí tại: console.groq.com (Khuyên dùng)';
+    if(p === 'openai') $('apiHelp').innerHTML = 'Lấy key tại: platform.openai.com';
+    if(p === 'groq') $('apiHelp').innerHTML = 'Lấy key miễn phí tại: console.groq.com';
 }
 $('aiProvider').onchange = updateApiHelp;
 
@@ -101,18 +96,32 @@ function saveApiSettings() {
     aiConfig.provider = $('aiProvider').value;
     aiConfig.key = $('apiKey').value.trim();
     localStorage.setItem('bcrAiConfig', JSON.stringify(aiConfig));
-    $('btnAI').style.display = aiConfig.key ? 'block' : 'none';
-    alert('Đã lưu cài đặt AI!');
+    alert('Đã lưu cài đặt AI! Từ giờ AI sẽ tự động phân tích mỗi khi bạn bấm nút.');
+    if(H.length > 0) callAI(); // Gọi thử luôn nếu đang có dữ liệu
 }
 
 function save(){try{localStorage.setItem('bcrH',JSON.stringify(H))}catch(e){}; render()}
-function add(x){if(H.length>0 && H[H.length-1]===x && x!=='T') return; H.push(x); if(H.length>CAP) H.shift(); save();}
-function undo(){if(H.length>0){H.pop();save();}}
+
+// HÀM CẬP NHẬT CHÍNH: Khi có kết quả mới
+function add(x){
+    if(H.length>0 && H[H.length-1]===x && x!=='T') return; 
+    H.push(x); 
+    if(H.length>CAP) H.shift(); 
+    
+    // 1. Cập nhật và hiển thị ngay thuật toán cục bộ (tốc độ 0.01s)
+    save(); 
+    
+    // 2. Gọi AI chạy ngầm (nếu có API key)
+    if(aiConfig.key && H.length >= 5) {
+        callAI();
+    }
+}
+
+function undo(){if(H.length>0){H.pop();save(); if(aiConfig.key && H.length >= 5) callAI();}}
 function clr(){if(confirm('Xóa toàn bộ lịch sử?')){H=[];save();}}
 
 function wilson(c,n){if(!n)return[0,1];const z=1.96,p=c/n,d=1+z*z/n,m=p+z*z/(2*n),s=z*Math.sqrt(p*(1-p)/n+z*z/(4*n*n));return[(m-s)/d,(m+s)/d]}
 
-// THUẬT TOÁN PHÂN TÍCH
 function getPrediction(){
     let res = { door: 'B', p: BASE.B, t: BASE.T, reason: 'Chưa có dữ liệu.' };
     if(H.length === 0) return res;
@@ -124,19 +133,16 @@ function getPrediction(){
 
     if(streak >= 4){
         let target = last === 'B' ? 'P' : 'B';
-        res.door = target; res.p = 0.55; 
-        res.reason = `Cầu Bệt ${streak} tay. Khuyên BẺ CẦU sang ${NAME[target]}.`;
+        res.door = target; res.p = 0.55; res.reason = `Cầu Bệt ${streak} tay. Khuyên BẺ CẦU.`;
         return res;
     }
     if(seq.length >= 4 && seq[seq.length-1] !== seq[seq.length-2] && seq[seq.length-2] !== seq[seq.length-3]){
         let target = last === 'B' ? 'P' : 'B';
-        res.door = target; res.p = 0.52;
-        res.reason = `Cầu 1-1. Bám nhịp đánh ${NAME[target]}.`;
+        res.door = target; res.p = 0.52; res.reason = `Cầu 1-1. Bám nhịp.`;
         return res;
     }
 
-    let recent = H.slice(-15);
-    let ctxCnt = {B:0, P:0};
+    let recent = H.slice(-15), ctxCnt = {B:0, P:0};
     if(recent.length >= 2){
         let key = recent.slice(-2).join('');
         for(let i=2; i<recent.length; i++){
@@ -148,13 +154,13 @@ function getPrediction(){
     }
     let n = ctxCnt.B + ctxCnt.P;
     if(n >= 3){
-        if(ctxCnt.B > ctxCnt.P){ res.door = 'B'; res.p = (ctxCnt.B/n)*0.9; res.reason = `Markov: Mẫu 2 ván -> B (${ctxCnt.B} lần).`; }
-        else if(ctxCnt.P > ctxCnt.B){ res.door = 'P'; res.p = (ctxCnt.P/n)*0.9; res.reason = `Markov: Mẫu 2 ván -> P (${ctxCnt.P} lần).`; }
+        if(ctxCnt.B > ctxCnt.P){ res.door = 'B'; res.p = (ctxCnt.B/n)*0.9; res.reason = `Markov: B (${ctxCnt.B} lần).`; }
+        else if(ctxCnt.P > ctxCnt.B){ res.door = 'P'; res.p = (ctxCnt.P/n)*0.9; res.reason = `Markov: P (${ctxCnt.P} lần).`; }
         else { res.door = last; res.p = 0.5; res.reason = `Markov cân bằng.`; }
     } else {
         let b = recent.filter(x=>x==='B').length, p = recent.filter(x=>x==='P').length;
-        if(b>p){ res.door='B'; res.p=0.5; res.reason='Xu hướng nghiêng CÁI.'; }
-        else if(p>b){ res.door='P'; res.p=0.5; res.reason='Xu hướng nghiêng CON.'; }
+        if(b>p){ res.door='B'; res.p=0.5; res.reason='Xu hướng CÁI.'; }
+        else if(p>b){ res.door='P'; res.p=0.5; res.reason='Xu hướng CON.'; }
         else { res.door=last; res.p=0.5; res.reason='Cân bằng.'; }
     }
     if(res.p > 0.65) res.p = 0.65; if(res.p < 0.45) res.p = 0.45;
@@ -173,7 +179,7 @@ function render(){
     $('strip').innerHTML = H.slice(-15).map(x=>`<div class="d ${x}">${x}</div>`).join('');
     
     let k = Math.min(2, H.length), {cnt, n} = getCtxStats(k), est = estimate(cnt, n);
-    $('ctx').textContent = `Tổng ${H.length} ván. Mẫu 2 ván gần nhất xuất hiện ${n} lần.`;
+    $('ctx').textContent = `Tổng ${H.length} ván.`;
     $('tb').innerHTML = [...'BPT'].map(o => {
         const [lo, hi] = wilson(cnt[o], n);
         return `<tr><td style="color:var(--${o})">${NAME[o]}</td><td>${pc(BASE[o])}</td><td>${n?cnt[o]+'/'+n:'–'}</td><td><b>${pc(est[o])}</b></td><td>${n?pc(lo)+'–'+pc(hi):'–'}</td></tr>`;
@@ -183,89 +189,76 @@ function getCtxStats(k){const cnt={B:0,P:0,T:0};let n=0;if(H.length<=k)return{cn
 function estimate(cnt,n,m=150){const e={};for(const o of'BPT')e[o]=(cnt[o]+m*BASE[o])/(n+m);return e}
 
 // ==========================================
-// AI CALLER (VẠN NĂNG)
+// AI CALLER (TỰ ĐỘNG CHẠY KHI CÓ KẾT QUẢ MỚI)
 // ==========================================
-$('btnAI').onclick = async () => {
-    if(!aiConfig.key) return alert('Vui lòng lưu API Key trong phần Cài đặt!');
-    if(!window.lastImageBlob) return alert('Vui lòng tải ảnh lên trước (nút Quét ảnh).');
+async function callAI() {
+    if(!aiConfig.key || H.length < 3) return;
     
-    $('btnAI').textContent = "⏳ AI đang phân tích...";
-    $('btnAI').disabled = true;
-    
-    const reader = new FileReader();
-    reader.readAsDataURL(window.lastImageBlob);
-    reader.onloadend = async () => {
-        const base64data = reader.result.split(',')[1];
-        const prompt = `Ảnh bảng cầu Baccarat. Hãy đọc chuỗi kết quả (B=Cái, P=Con, T=Hòa) từ trái sang phải, trên xuống dưới. Phân tích nhịp cầu và dự đoán ván tiếp theo. Trả lời ngắn: "Cầu: [chuỗi]. Dự đoán: [CÁI/CON]. Lý do: [1 câu]"`;
+    // Hiện trạng thái đang tải
+    $('aiStatus').style.display = 'block';
+    $('aiStatus').textContent = "🤖 AI đang suy luận...";
+
+    const seqStr = H.join(' ');
+    const prompt = `Chuỗi Baccarat: "${seqStr}" (B=Cái, P=Con, T=Hòa). Phân tích nhịp cầu và dự đoán ván tiếp theo. Trả lời siêu ngắn gọn: "Dự đoán: [CÁI/CON]. Lý do: [1 câu]"`;
         
-        try {
-            let resultText = "";
-            
-            if(aiConfig.provider === 'gemini') {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${aiConfig.key}`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: base64data } }] }] })
-                });
-                const data = await res.json();
-                if(data.error) throw new Error(data.error.message);
-                resultText = data.candidates[0].content.parts[0].text;
-            } 
-            else if(aiConfig.provider === 'openai') {
-                const res = await fetch(`https://api.openai.com/v1/chat/completions`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${aiConfig.key}`},
-                    body: JSON.stringify({
-                        model: "gpt-4o",
-                        messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64data}` } }] }]
-                    })
-                });
-                const data = await res.json();
-                if(data.error) throw new Error(data.error.message);
-                resultText = data.choices[0].message.content;
-            }
-            else if(aiConfig.provider === 'groq') {
-                // Groq dùng chuẩn OpenAI nhưng model khác (llama-3.2-11b-vision-preview)
-                const res = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${aiConfig.key}`},
-                    body: JSON.stringify({
-                        model: "llama-3.2-11b-vision-preview",
-                        messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64data}` } }] }]
-                    })
-                });
-                const data = await res.json();
-                if(data.error) throw new Error(data.error.message);
-                resultText = data.choices[0].message.content;
-            }
-
-            $('sub').innerHTML = `<span style="color:#f1c40f; font-weight:bold;">🤖 AI (${aiConfig.provider.toUpperCase()}):</span><br>${resultText.replace(/\n/g, '<br>')}`;
-            
-        } catch(e) {
-            alert("Lỗi AI: " + e.message);
-        } finally {
-            $('btnAI').textContent = "🤖 Phân tích bằng AI (Gửi ảnh)";
-            $('btnAI').disabled = false;
+    try {
+        let resultText = "";
+        if(aiConfig.provider === 'gemini') {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${aiConfig.key}`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+            const data = await res.json();
+            if(data.error) throw new Error(data.error.message);
+            resultText = data.candidates[0].content.parts[0].text;
+        } else if(aiConfig.provider === 'openai') {
+            const res = await fetch(`https://api.openai.com/v1/chat/completions`, {
+                method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${aiConfig.key}`},
+                body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: prompt }] })
+            });
+            const data = await res.json();
+            if(data.error) throw new Error(data.error.message);
+            resultText = data.choices[0].message.content;
+        } else if(aiConfig.provider === 'groq') {
+            const res = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+                method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${aiConfig.key}`},
+                body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }] })
+            });
+            const data = await res.json();
+            if(data.error) throw new Error(data.error.message);
+            resultText = data.choices[0].message.content;
         }
-    };
-};
 
-// ==========================================
-// QUÉT ẢNH LOCAL (CLAUDE)
-// ==========================================
+        // Cập nhật kết quả AI lên màn hình
+        $('sub').innerHTML = `<span style="color:#8e44ad; font-weight:bold;">🤖 AI:</span> ${resultText.replace(/\n/g, '<br>')}`;
+        $('aiStatus').style.display = 'none';
+
+    } catch(e) {
+        $('aiStatus').textContent = "Lỗi AI: " + e.message;
+        setTimeout(() => { $('aiStatus').style.display = 'none'; }, 3000);
+    }
+}
+
+// QUÉT ẢNH (GIỮ NGUYÊN CLAUDE)
 function hsv(r,g,b){r/=255;g/=255;b/=255;const M=Math.max(r,g,b),m=Math.min(r,g,b),d=M-m;let h=0;if(d){if(M===r)h=((g-b)/d)%6;else if(M===g)h=(b-r)/d+2;else h=(r-g)/d+4;h*=60;if(h<0)h+=360}return[h,M?d/M:0,M]}
 function cls(ctx,x,y,w,h){const D=ctx.getImageData(x,y,w,h).data;let R=0,Bl=0,G=0,n=D.length/4;
  for(let i=0;i<D.length;i+=4){const[hh,s,v]=hsv(D[i],D[i+1],D[i+2]);if(s>.47&&v>.35){if(hh<15||hh>340)R++;else if(hh>200&&hh<250)Bl++;else if(hh>60&&hh<160)G++}}
  const m=Math.max(R,Bl,G);if(m/n<.04)return null;return m===R?'B':m===Bl?'P':'T'}
 function readPlate(src,w,h){const cv=$('cv');cv.width=w;cv.height=h;const ctx=cv.getContext('2d',{willReadFrequently:true});ctx.drawImage(src,0,0,w,h);
- const X=0, Y=h*0.65, W=w*0.3, Hh=h*0.3; // Giữ vùng cắt mặc định
+ const X=0, Y=h*0.65, W=w*0.3, Hh=h*0.3;
  const cw=W/6, ch=Hh/6, seq=[];
  for(let c=0;c<6;c++)for(let r=0;r<6;r++){const k=cls(ctx,Math.round(X+c*cw),Math.round(Y+r*ch),Math.round(cw),Math.round(ch));if(!k)return seq;seq.push(k)}return seq}
 function merge(seq){let m=Math.min(seq.length,H.length);for(;m>0;m--){if(H.slice(-m).join('')===seq.slice(0,m).join(''))break}
- const add=seq.slice(m);H.push(...add);save();return add.length}
+ const addSeq=seq.slice(m);H.push(...addSeq);save();return addSeq.length}
 
 $('f').onchange=e=>{
     const f=e.target.files[0]; if(!f)return;
-    window.lastImageBlob = f; // Lưu ảnh cho AI
     const im=new Image();
-    im.onload=()=>{ const s=readPlate(im,im.naturalWidth,im.naturalHeight); add(s); };
+    im.onload=()=>{ 
+        const s=readPlate(im,im.naturalWidth,im.naturalHeight); 
+        const added = merge(s);
+        if(added > 0 && aiConfig.key && H.length >= 3) callAI(); // Gọi AI nếu quét ảnh có ván mới
+    };
     im.src=URL.createObjectURL(f); e.target.value='';
 };
 
