@@ -35,6 +35,10 @@ button{font-family:inherit;cursor:pointer}
 .bank input,.bank select{width:100%;background:#0d1017;color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:12px;font-size:17px}
 .bank .c{flex:1;min-width:90px}
 #bet{margin-top:10px;font-size:15px;color:#c9d0dc;line-height:1.5}#bet b{color:var(--tx);font-size:18px}
+.pr{display:flex;gap:8px;margin-top:12px}.pr div{flex:1;background:#0d1017;border:1px solid var(--bd);border-radius:12px;padding:8px 2px}
+.pr small{display:block;color:var(--mu);font-size:12px}.pr b{font-size:21px}
+.tag{font-size:13px;color:var(--mu);margin-top:8px}
+#stat{font-size:14px;color:#c9d0dc;line-height:1.55}#stat .rw{border-bottom:1px solid var(--bd);padding:6px 0}#stat .rw b{color:var(--tx)}
 .foot{color:var(--mu);font-size:13px;text-align:center;margin-top:12px}
 details{margin-top:8px;color:var(--mu);font-size:14px}summary{padding:6px 0}
 details button{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;font-size:14px;margin:4px 4px 0 0}
@@ -48,6 +52,7 @@ details button{background:var(--card);color:var(--tx);border:1px solid var(--bd)
  <div class="pc" id="pct"></div>
  <div class="tie" id="tie"></div>
  <div class="badge" id="badge" style="display:none"></div>
+ <div class="pr" id="pr" style="display:none"></div><div class="tag" id="tag"></div>
  <div class="why" id="why"></div>
 </div>
 
@@ -67,7 +72,9 @@ details button{background:var(--card);color:var(--tx);border:1px solid var(--bd)
 <div class="sec"><button id="undo">↶ Hoàn tác</button></div>
 <div class="foot" id="foot"></div>
 
+<details><summary>Thống kê cầu đã học</summary><div id="stat"></div></details>
 <details><summary>Dữ liệu học</summary>
+ <button id="dl">⬇ Tải file sao lưu</button><button id="ld">⬆ Nạp từ file</button><input id="bf" type="file" accept=".json,application/json" hidden>
  <button id="exp">Sao lưu (chép)</button><button id="imp">Khôi phục</button><button id="wipe">Xóa dữ liệu học</button>
 </details>
 <div id="toast"></div>
@@ -81,7 +88,7 @@ let S={E:[],brain:{m:{},p:{},tot:0},acc:{h:0,n:0},bank:{cap:0,lvl:2,minb:0}};
 try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&x.E&&x.brain)S=x}catch(e){}
 if(!S.bank)S.bank={cap:0,lvl:2,minb:0};
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}render()}
-function inc(b,k,o,dv){const t=S.brain[b];t[k]=t[k]||{};t[k][o]=Math.max(0,(t[k][o]||0)+dv)}
+function inc(b,k,o,dv){const t=S.brain[b]||(S.brain[b]={});t[k]=t[k]||{};t[k][o]=Math.max(0,(t[k][o]||0)+dv)}
 const seqF=()=>S.E.map(e=>e.r).filter(r=>r!=='T');
 
 // ===== nhận diện cầu =====
@@ -100,10 +107,11 @@ function detect(f){
 
 // ===== dự đoán =====
 function predict(f){
- const det=detect(f),est={...BASE};let reason='',badge=det?det.name:'',door;
+ const det=detect(f),est={...BASE};let reason='',badge=det?det.name:'',door,info=null;
  if(det){
   const c=S.brain.p[det.key]||{},C=c.C||0,X=c.X||0,T=c.T||0,n=C+X+T;
   est[det.cont]=(C+M*BASE[det.cont])/(n+M);est[det.brk]=(X+M*BASE[det.brk])/(n+M);est.T=(T+M*BASE.T)/(n+M);
+  info={n,eC:est[det.cont],eX:est[det.brk],eT:est.T,z:n?(C-n*BASE[det.cont])/Math.sqrt(n*BASE[det.cont]*(1-BASE[det.cont])):0};
   door=est.B>=est.P?'B':'P';
   reason=(door===det.cont?'Theo cầu ':'Bẻ cầu ')+NAME[door]+'. ';
   reason+=n>=25?`Đã học ${n} lần cầu này: tiếp tục ${C}, bẻ ${X}, hòa ${T}.`:n?`Mới học ${n} lần, xác suất còn gần mức gốc.`:'Chưa có dữ liệu học cho cầu này, dùng xác suất gốc.';
@@ -116,7 +124,7 @@ function predict(f){
   door=est.B>=est.P?'B':'P';badge='Markov bậc '+use.k;
   reason=n>=25?`Dựa trên Markov: sau "${f.slice(-use.k).map(x=>NAME[x]).join('-')}" đã ra ${NAME.B} ${c.B||0}, ${NAME.P} ${c.P||0}, ${NAME.T} ${c.T||0} (${n} lần).`:`Dữ liệu học còn ít (${n} lần), xác suất gần mức gốc.`;
  }else{door='B';reason='Chưa có ván nào, dùng xác suất gốc 8 bộ bài.'}
- return{door,p:est[door],t:est.T,reason,badge,det}}
+ return{door,p:est[door],t:est.T,reason,badge,det,info}}
 
 // ===== thêm / hoàn tác ván =====
 function addHand(r){
@@ -124,6 +132,8 @@ function addHand(r){
  for(let k=1;k<=3&&k<=f.length;k++){const key='m'+k+':'+f.slice(-k).join('');inc('m',key,r,1);d.push(['m',key,r])}
  const det=detect(f);
  if(det){const o=r==='T'?'T':r===det.cont?'C':'X';inc('p',det.key,o,1);d.push(['p',det.key,o])}
+ const f2=r==='T'?f:[...f,r],da=detect(f2),fam=k=>k.replace(/\d+/,'');
+ if(da&&(!det||fam(det.key)!==fam(da.key))){inc('o',fam(da.key),'n',1);d.push(['o',fam(da.key),'n'])}
  if(r!=='T'){S.acc.n++;if(pr.door===r){S.acc.h++;h=1}else h=0}
  S.brain.tot++;S.E.push({r,d,h});if(S.E.length>CAP)S.E.shift()}
 function undo(){const e=S.E.pop();if(!e)return;for(const[b,k,o]of e.d)inc(b,k,o,-1);
@@ -145,6 +155,17 @@ function bankRead(){
 ['cap','lvl','minb'].forEach(i=>{$(i).oninput=bankRead;$(i).onchange=bankRead});
 function bankInit(){$('cap').value=S.bank.cap||'';$('lvl').value=S.bank.lvl||2;$('minb').value=S.bank.minb||''}
 
+function bkNote(){try{const bk=+localStorage.getItem(KEY+'bk')||0;return S.brain.tot>=30&&(!bk||Date.now()-bk>14*864e5)?' · Nhớ sao lưu':''}catch(e){return''}}
+// ===== thống kê cầu =====
+function statHTML(){
+ const L=[['bet4','Bệt 4'],['bet5','Bệt 5'],['bet6','Bệt 6'],['bet7','Bệt 7+'],['pp4','1-1 (4)'],['pp5','1-1 (5)'],['pp6','1-1 (6+)'],['p12','1-2 / 2-1']];
+ const q=v=>Math.round(100*v)+'%';let h='';
+ for(const[k,nm]of L){const c=S.brain.p[k]||{},C=c.C||0,X=c.X||0,T=c.T||0,n=C+X+T;
+  h+=`<div class="rw"><b>${nm}</b>: `+(n?`tiếp tục ${q(C/n)} · bẻ ${q(X/n)} · hòa ${q(T/n)} <span style="color:var(--mu)">(${n} lần)</span>`:'<span style="color:var(--mu)">chưa có dữ liệu</span>')+'</div>'}
+ const o=S.brain.o||{},tot=S.brain.tot||0,r=k=>{const n=(o[k]||{}).n||0;return`${n} lần`+(tot?` (~${(100*n/tot).toFixed(1)}/100 ván)`:'')};
+ h+=`<div class="rw"><b>Tần suất xuất hiện</b> trên ${tot} ván: Bệt ${r('bet')} · 1-1 ${r('pp')} · 1-2 ${r('p')}</div>`;
+ return h+'<div class="rw" style="color:var(--mu)">Nếu các ván độc lập, các số này sẽ tiến dần về xác suất gốc khi có nhiều dữ liệu.</div>'}
+
 // ===== giao diện =====
 function render(){
  const f=seqF(),p=predict(f);
@@ -153,15 +174,23 @@ function render(){
  $('pct').textContent=pc(p.p);$('tie').textContent='Hòa '+pc(p.t);
  const b=$('badge');b.style.display=p.badge?'inline-block':'none';b.textContent=p.badge?'Cầu: '+p.badge:'';
  $('why').textContent='Lý do: '+p.reason;
+ const pr=$('pr'),I=p.info;
+ if(I){pr.style.display='flex';pr.innerHTML=`<div><small>TIẾP TỤC CẦU</small><b>${pc(I.eC)}</b></div><div><small>BẺ CẦU</small><b>${pc(I.eX)}</b></div><div><small>HÒA</small><b>${pc(I.eT)}</b></div>`;
+  $('tag').textContent=I.n<30?`Ít dữ liệu (${I.n} lần): số này gần như là xác suất gốc.`:(I.n>=100&&Math.abs(I.z)>=3)?`Có dấu hiệu lệch so với gốc (${I.n} lần). Cần kiểm tra thêm.`:`Đã học ${I.n} lần: chưa thấy khác xác suất gốc.`}
+ else{pr.style.display='none';$('tag').textContent=''}
+ $('stat').innerHTML=statHTML();
  $('beads').innerHTML=S.E.map(e=>`<div class="d ${e.r}">${e.r}</div>`).join('');
  $('bet').innerHTML=bankHTML();
- const a=S.acc;$('foot').textContent=`Đã học ${S.brain.tot} ván · Gợi ý đúng ${a.h}/${a.n}`+(a.n?` (${Math.round(100*a.h/a.n)}%)`:'')}
+ const a=S.acc;$('foot').textContent=`Đã học ${S.brain.tot} ván · Gợi ý đúng ${a.h}/${a.n}`+(a.n?` (${Math.round(100*a.h/a.n)}%)`:'')+bkNote()}
 let tt;function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),3500)}
 document.querySelectorAll('.k').forEach(b=>b.onclick=()=>{addHand(b.dataset.r);save()});
 $('undo').onclick=()=>{undo();save()};
 $('rs').onclick=()=>{if(confirm('Xáo bài mới? Lịch sử ván hiện tại sẽ bị xóa (dữ liệu đã học vẫn giữ).')){S.E=[];save();toast('Đã xáo bài mới')}};
 $('exp').onclick=async()=>{const j=JSON.stringify(S.brain);try{await navigator.clipboard.writeText(j);toast('Đã chép dữ liệu học')}catch(e){prompt('Chép đoạn này để sao lưu:',j)}};
 $('imp').onclick=()=>{const j=prompt('Dán dữ liệu học đã sao lưu:');if(!j)return;try{const b=JSON.parse(j);if(!b.m||!b.p)throw 0;S.brain=b;save();toast('Đã khôi phục')}catch(e){toast('Dữ liệu không hợp lệ')}};
+$('dl').onclick=()=>{const b=new Blob([JSON.stringify({v:1,brain:S.brain,acc:S.acc})],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='bcr-kho-du-lieu.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);try{localStorage.setItem(KEY+'bk',Date.now())}catch(e){}toast('Đã tải file sao lưu');render()};
+$('ld').onclick=()=>$('bf').click();
+$('bf').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const j=JSON.parse(t),b=j.brain||j;if(!b.m||!b.p)throw 0;if(S.brain.tot>0&&!confirm('Thay kho dữ liệu hiện tại bằng file này?'))return;S.brain=b;if(j.acc)S.acc=j.acc;save();toast('Đã nạp kho dữ liệu')}catch(x){toast('File không hợp lệ')}})};
 $('wipe').onclick=()=>{if(confirm('Xóa toàn bộ dữ liệu đã học?')){S={E:[],brain:{m:{},p:{},tot:0},acc:{h:0,n:0},bank:S.bank};save()}};
 
 //<DETECT>
@@ -231,5 +260,7 @@ $('file').onchange=e=>{
   URL.revokeObjectURL(im.src)};
  im.onerror=()=>toast('Không mở được ảnh');
  im.src=URL.createObjectURL(f)};
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+if(S.brain.tot===0&&typeof fetch==='function'){try{fetch('bcr-kho-du-lieu.json').then(r=>r.ok?r.json():null).then(j=>{if(j&&j.brain&&j.brain.m&&S.brain.tot===0){S.brain=j.brain;if(j.acc)S.acc=j.acc;save()}}).catch(()=>{})}catch(e){}}
 bankInit();render();
 </script></body></html>
