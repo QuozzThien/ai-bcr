@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BCR – Gợi ý nhanh</title>
+<style>
+:root{--bg:#f3f4f8;--card:#fff;--tx:#1b1f2a;--mu:#6b7280;--bd:#e3e6ee;--B:#c62828;--P:#1565c0;--T:#558b2f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10131a;--card:#1a1f2b;--tx:#e8eaf0;--mu:#9aa3b2;--bd:#2a3140;--B:#e53935;--P:#1e88e5;--T:#7cb342}}
+:root[data-theme="dark"]{--bg:#10131a;--card:#1a1f2b;--tx:#e8eaf0;--mu:#9aa3b2;--bd:#2a3140;--B:#e53935;--P:#1e88e5;--T:#7cb342}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:10px;max-width:520px;margin-inline:auto}
+.hero{border-radius:16px;padding:16px;color:#fff;text-align:center;background:var(--B);transition:background .2s}
+.hero .l{font-size:14px;opacity:.9}.hero .big{font-size:56px;font-weight:800;line-height:1.05;letter-spacing:1px}.hero .p{font-size:26px;font-weight:700}
+.hero .s{font-size:14px;margin-top:8px;opacity:.95}
+.mini{display:flex;justify-content:space-between;margin:8px 2px;font-size:14px;color:var(--mu)}
+.mini b{color:var(--tx)}
+.row{display:flex;gap:8px}
+.k{flex:1;border:0;border-radius:14px;color:#fff;font-size:26px;font-weight:800;padding:20px 0}
+.kB{background:var(--B)}.kP{background:var(--P)}.kT{background:var(--T)}
+.sec{display:flex;gap:8px;margin-top:8px}
+.sec button,.sec label{flex:1;text-align:center;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:10px 4px;font-size:14px}
+.strip{display:flex;gap:3px;margin:10px 0;overflow:hidden;justify-content:flex-end}
+.d{flex:0 0 22px;height:22px;border-radius:50%;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.d.B{background:var(--B)}.d.P{background:var(--P)}.d.T{background:var(--T)}
+details{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px;margin-top:10px}summary{color:var(--mu);font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}th,td{text-align:right;padding:4px}th:first-child,td:first-child{text-align:left}
+.mu{color:var(--mu);font-size:13px}input{width:60px;padding:6px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx)}
+canvas{display:none}
+</style></head><body>
+
+<div class="hero" id="hero">
+ <div class="l">Ván tiếp theo nghiêng về</div>
+ <div class="big" id="pk">–</div><div class="p" id="pp"></div>
+ <div class="s" id="sub"></div>
+</div>
+<div class="mini"><span>Con <b id="eP">–</b></span><span>Hòa <b id="eT">–</b></span><span>Cái <b id="eB">–</b></span></div>
+
+<div class="row"><button class="k kB" onclick="add('B')">CÁI</button><button class="k kT" onclick="add('T')">HÒA</button><button class="k kP" onclick="add('P')">CON</button></div>
+<div class="sec"><label>Quét ảnh<input id="f" type="file" accept="image/*" hidden></label><button id="sc">Quét màn hình</button><button onclick="undo()">Hoàn tác</button></div>
+<div class="strip" id="strip"></div>
+<div class="mu" style="text-align:center">Chênh lệch nhỏ, không đảm bảo kết quả.</div>
+
+<details><summary>Chi tiết, kiểm chứng và vùng quét</summary>
+ <div class="mu" id="ctx" style="margin-top:6px"></div>
+ <table><thead><tr><th></th><th>Gốc</th><th>Đã ra</th><th>Ước lượng</th><th>KTC 95%</th></tr></thead><tbody id="tb"></tbody></table>
+ <p id="bt" class="mu"></p>
+ <div class="mu">Vùng quét (0–1): x0 <input id="x0" value="0"> y0 <input id="y0" value="0.694"> x1 <input id="x1" value="0.266"> y1 <input id="y1" value="0.815"></div>
+ <div class="mu" id="st" style="margin-top:6px"></div>
+ <button onclick="clr()" style="margin-top:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:8px 12px">Xóa toàn bộ lịch sử</button>
+</details>
+<canvas id="cv"></canvas>
+
+<script>
+const BASE={B:.4586,P:.4462,T:.0952},NAME={B:'Cái',P:'Con',T:'Hòa'};
+let H=[];try{H=JSON.parse(localStorage.getItem('bcrH')||'[]')}catch(e){}
+const $=id=>document.getElementById(id),pc=v=>(100*v).toFixed(1)+'%';
+function save(){try{localStorage.setItem('bcrH',JSON.stringify(H))}catch(e){}render()}
+function add(x){H.push(x);save()}function undo(){H.pop();save()}function clr(){if(confirm('Xóa toàn bộ lịch sử?')){H=[];save()}}
+function wilson(c,n){if(!n)return[0,1];const z=1.96,p=c/n,d=1+z*z/n,m=p+z*z/(2*n),s=z*Math.sqrt(p*(1-p)/n+z*z/(4*n*n));return[(m-s)/d,(m+s)/d]}
+function ctxStats(k,seq=H){const cnt={B:0,P:0,T:0};let n=0;if(seq.length<=k)return{cnt,n};const key=seq.slice(-k).join('');
+ for(let i=k;i<seq.length;i++){if(seq.slice(i-k,i).join('')===key){cnt[seq[i]]++;n++}}return{cnt,n}}
+function estimate(cnt,n,m=150){const e={};for(const o of'BPT')e[o]=(cnt[o]+m*BASE[o])/(n+m);return e}
+function render(){
+ const k=Math.min(2,H.length),{cnt,n}=ctxStats(k),e=estimate(cnt,n);
+ const lean=e.B>=e.P?'B':'P',a=cnt.B,b=cnt.P,pat=(n>=3&&a!==b)?(a>b?'B':'P'):null;
+ $('hero').style.background=`var(--${lean})`;$('pk').textContent=NAME[lean].toUpperCase();$('pp').textContent=pc(e[lean]);
+ $('sub').textContent=pat?`Theo cầu ${H.slice(-k).join(' ')}: ${NAME[pat]} (${Math.max(a,b)}/${a+b} lần)`:'Chưa đủ mẫu theo cầu, dùng xác suất gốc';
+ $('eB').textContent=pc(e.B);$('eP').textContent=pc(e.P);$('eT').textContent=pc(e.T);
+ $('strip').innerHTML=H.slice(-12).map(x=>`<div class="d ${x}">${x}</div>`).join('');
+ $('ctx').textContent=k?`Mẫu cầu: ${H.slice(-k).join(' ')} từng xuất hiện ${n} lần. Tổng ${H.length} ván.`:'Chưa có dữ liệu.';
+ $('tb').innerHTML=[...'BPT'].map(o=>{const[lo,hi]=wilson(cnt[o],n);return`<tr><td style="color:var(--${o})">${NAME[o]}</td><td>${pc(BASE[o])}</td><td>${n?cnt[o]+'/'+n:'–'}</td><td><b>${pc(e[o])}</b></td><td>${n?pc(lo)+'–'+pc(hi):'–'}</td></tr>`}).join('');
+ backtest()}
+function backtest(){
+ if(H.length<30){$('bt').textContent='Kiểm chứng cần ít nhất 30 ván.';return}
+ let hit=0,tot=0;
+ for(let i=10;i<H.length;i++){const{cnt,n}=ctxStats(2,H.slice(0,i));if(n<3||cnt.B===cnt.P||H[i]==='T')continue;tot++;if((cnt.B>cnt.P?'B':'P')===H[i])hit++}
+ if(!tot){$('bt').textContent='Chưa đủ mẫu để kiểm chứng.';return}
+ const r=hit/tot,z=(r-.5)/Math.sqrt(.25/tot);
+ $('bt').innerHTML=`Kiểm chứng dòng "theo cầu" trên dữ liệu của bạn: đúng <b>${hit}/${tot} (${pc(r)})</b>, z = ${z.toFixed(2)}. ${Math.abs(z)<1.96?'Chưa có bằng chứng đoán tốt hơn tung đồng xu.':'Có chênh lệch nhưng cần nhiều dữ liệu hơn, vì rất dễ là ngẫu nhiên.'} Lợi thế nhà cái vẫn khoảng 1–1,2% ở Cái/Con và khoảng 14% ở Hòa.`}
+function hsv(r,g,b){r/=255;g/=255;b/=255;const M=Math.max(r,g,b),m=Math.min(r,g,b),d=M-m;let h=0;if(d){if(M===r)h=((g-b)/d)%6;else if(M===g)h=(b-r)/d+2;else h=(r-g)/d+4;h*=60;if(h<0)h+=360}return[h,M?d/M:0,M]}
+function cls(ctx,x,y,w,h){const D=ctx.getImageData(x,y,w,h).data;let R=0,Bl=0,G=0,n=D.length/4;
+ for(let i=0;i<D.length;i+=4){const[hh,s,v]=hsv(D[i],D[i+1],D[i+2]);if(s>.47&&v>.35){if(hh<15||hh>340)R++;else if(hh>200&&hh<250)Bl++;else if(hh>60&&hh<160)G++}}
+ const m=Math.max(R,Bl,G);if(m/n<.04)return null;return m===R?'B':m===Bl?'P':'T'}
+function readPlate(src,w,h){const cv=$('cv');cv.width=w;cv.height=h;const ctx=cv.getContext('2d',{willReadFrequently:true});ctx.drawImage(src,0,0,w,h);
+ const[x0,y0,x1,y1]=['x0','y0','x1','y1'].map(i=>parseFloat($(i).value));const X=x0*w,Y=y0*h,cw=(x1-x0)*w/6,ch=(y1-y0)*h/6,seq=[];
+ for(let c=0;c<6;c++)for(let r=0;r<6;r++){const k=cls(ctx,Math.round(X+c*cw),Math.round(Y+r*ch),Math.round(cw),Math.round(ch));if(!k)return seq;seq.push(k)}return seq}
+function merge(seq){let m=Math.min(seq.length,H.length);for(;m>0;m--){if(H.slice(-m).join('')===seq.slice(0,m).join(''))break}
+ const add=seq.slice(m);H.push(...add);save();return add.length}
+$('f').onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image();im.onload=()=>{const s=readPlate(im,im.naturalWidth,im.naturalHeight);$('st').textContent=`Đọc ${s.length} hạt, thêm ${merge(s)} ván mới.`};im.src=URL.createObjectURL(f);e.target.value=''};
+let stream=null,timer=null;
+$('sc').onclick=async()=>{if(stream){stream.getTracks().forEach(t=>t.stop());clearInterval(timer);stream=null;$('sc').textContent='Quét màn hình';return}
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getDisplayMedia){$('st').textContent='Trình duyệt này không hỗ trợ chia sẻ màn hình. Dùng "Quét ảnh" hoặc nhập tay.';alert('Trình duyệt này không hỗ trợ quét màn hình. Hãy dùng Quét ảnh hoặc nhập tay.');return}
+ try{stream=await navigator.mediaDevices.getDisplayMedia({video:true});const v=document.createElement('video');v.srcObject=stream;v.muted=true;await v.play();$('sc').textContent='Dừng quét';
+  timer=setInterval(()=>{if(!v.videoWidth)return;const s=readPlate(v,v.videoWidth,v.videoHeight);$('st').textContent=`Đang quét: ${s.length} hạt, +${merge(s)} mới.`},1500)}catch(e){$('st').textContent='Không bật được chia sẻ màn hình.'}};
+render();
+</script></body></html>
