@@ -1,28 +1,170 @@
 (function () {
   'use strict';
 
-  // --- BIẾN TOÀN CỤC ĐỂ TRÁNH CHẠY NHIỀU LẦN ---
+  // Ngăn chạy nhiều lần nếu đã có menu
   if (window.apaLoading || document.getElementById('apa-ui')) {
     if (document.getElementById('apa-ui')) document.getElementById('apa-ui').classList.toggle('open');
     return;
   }
   window.apaLoading = true;
 
-  // --- TOÀN BỘ LOGIC CỦA USERSCRIPT ĐÃ ĐƯỢC SỬA ĐỔI ĐỂ CHẠY TRÊN TRÌNH DUYỆT ---
-  // (Nội dung này giống hệt script Tampermonkey nhưng được bọc trong IIFE)
-  
+  /* =====================================================================
+   * 1. NGÂN HÀNG ĐÁP ÁN (có thể nạp thêm bằng ô JSON trong menu)
+   * ===================================================================== */
+  const BUILTIN = [
+    // Bạn có thể dán dữ liệu mới vào đây nếu muốn
+  ];
+
+  /* =====================================================================
+   * 2. HÀM ĐỌC VÀ CHUẨN HÓA DỮ LIỆU TỪ CLIPBOARD
+   * ===================================================================== */
+  function parseAzotaReview(raw) {
+    const NOISE = /^(?:Giải thích|Thí sinh chọn\b.*|Thí sinh trả lời|Thí sinh không nhập.*|Câu làm sai\b.*|error\.\.\.|Đề đảo|Bỏ quảng cáo|Trắc nghiệm|Đúng\s*&\s*sai|Phần\s*\d+\..*)$/i;
+    const lines = String(raw).replace(/\r/g, '').split('\n').map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const L = [];
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^([A-Ha-h])\s*[\.\)]$/);
+      if (m && i + 1 < lines.length && !/^[A-Ha-h]\s*[\.\)]$/.test(lines[i + 1])) { L.push(m[1] + (/[A-H]/.test(m[1]) ? '. ' : ') ') + lines[i + 1]); i++; }
+      else L.push(lines[i]);
+    }
+    const heads = [];
+    L.forEach((x, i) => { if (/^Câu\s*\d+\b.*\bID\s*:\s*\d+/i.test(x)) heads.push(i); });
+    if (!heads.length) return [];
+    heads.push(L.length);
+    const clean = x => x.replace(/\s+/g, ' ').trim();
+    const stripTag = t => { t = t.trim(); for (let k = 0; k < 3; k++) { const m = t.match(/^\(([^)]{1,25})\)\s*/); if (!m) break; t = t.slice(m[0].length); } return t.trim(); };
+    const out = [];
+    for (let k = 0; k < heads.length - 1; k++) {
+      const b = L.slice(heads[k], heads[k + 1]);
+      const q = [], opts = [], stmts = [], tfAns = {}, sa = []; let letters = [], cur = null, mode = 'q', ansFirst = false, m;
+      const head = b[0].replace(/^Câu\s*\d+\s*(?:ID\s*:\s*\d+)?\s*/i, '').trim(); if (head) q.push(head);
+      for (const line of b.slice(1)) {
+        if (mode === 'done') break;
+        if (mode === 'ans') {
+          if (/^Thí sinh/i.test(line)) { mode = 'done'; continue; }
+          if ((m = line.match(/^([a-d])\s*[\)\.]\s*(Đúng|Sai)\s*$/i))) tfAns[m[1].toLowerCase()] = /^đúng$/i.test(m[2]);
+          else if (/^[A-H](?:\s*[,;&]\s*[A-H])*$/.test(line) && ansFirst && !letters.length) letters = line.match(/[A-H]/g);
+          ansFirst = false;
+          continue;
+        }
+        if (mode === 'sa') { if (/^Thí sinh/i.test(line)) { mode = 'done'; continue; } sa.push(line); continue; }
+        if (/^Đáp án được chấp nhận/i.test(line)) { mode = 'sa'; continue; }
+        if ((m = line.match(/^Đáp án đúng\s*:?\s*(.*)$/i))) { mode = 'ans'; ansFirst = true; if (m[1] && /^[A-H](?:\s*[,;&]\s*[A-H])*$/.test(m[1].trim())) letters = m[1].match(/[A-H]/g); continue; }
+        if (NOISE.test(line)) { cur = null; continue; }
+        if ((m = line.match(/^([A-H])\s*[\.\):]\s*(.+)$/))) { cur = { t: m[2] }; opts.push(cur); continue; }
+        if ((m = line.match(/^([a-d])\s*[\.\)]\s*(.+)$/))) { cur = { t: m[2] }; stmts.push(cur); continue; }
+        if (/^[A-H]$/.test(line)) { cur = null; continue; }
+        if (cur) cur.t += ' ' + line; else if (!opts.length && !stmts.length) q.push(line);
+      }
+      const qt = stripTag(clean(q.join(' ')));
+      if (!qt) continue;
+      if (stmts.length >= 2 && Object.keys(tfAns).length) {
+        const st = stmts.map((s, i) => ({ t: stripTag(clean(s.t)), v: tfAns['abcd'[i]] })).filter(s => s.t && typeof s.v === 'boolean');
+        if (st.length) out.push({ type: 'tf', q: qt, stmts: st });
+      } else if (opts.length >= 2 && letters.length) {
+        const a = [...new Set(letters.map(x => x.charCodeAt(0) - 65).filter(i => i < opts.length))];
+        if (a.length) out.push({ type: 'mc', q: qt, opts: opts.map(o => clean(o.t)), a });
+      } else if (sa.length) {
+        out.push({ type: 'sa', q: qt, answers: sa.map(clean).filter(Boolean) });
+      }
+    }
+    return out;
+  }
+
+  function parseCopiedText(input) {
+    const raw = String(input || '').replace(/\r/g, '').trim();
+    if (!raw) throw new Error('Clipboard đang trống.');
+    try { const j = JSON.parse(raw); if (Array.isArray(j)) return j; if (j && Array.isArray(j.questions)) return j.questions; } catch (_) {}
+    const a = parseAzotaReview(raw);
+    return a.length ? a : parseGeneric(raw);
+  }
+
+  function parseGeneric(input) {
+    const raw = String(input || '').replace(/\r/g, '').trim();
+    if (!raw) throw new Error('Clipboard đang trống.');
+    try { const j = JSON.parse(raw); if (Array.isArray(j)) return j; if (j && Array.isArray(j.questions)) return j.questions; } catch (_) {}
+
+    const lines = raw.split('\n').map(x => x.trim()).filter(Boolean);
+    const starts = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (/^(?:Câu|Cau)\s*\d+\b/i.test(lines[i])) starts.push(i);
+    }
+    if (!starts.length) throw new Error('Không tìm thấy dòng bắt đầu câu hỏi (Câu 1, Câu 2...).');
+    starts.push(lines.length);
+    const out = [];
+    const answerLine = /(?:đáp\s*án(?:\s*đúng)?|đáp\s*án\s*chính\s*xác|answer\s*key|correct\s*answer)\s*[:：\-]?\s*(.*)$/i;
+    const optLine = /^\s*([A-H])\s*[\).:]\s*(.+)$/i;
+    const stmtLine = /^\s*([a-d])\s*[\).:]\s*(.+)$/i;
+    const clean = x => x.replace(/\s+/g, ' ').trim();
+
+    for (let k = 0; k < starts.length - 1; k++) {
+      const block = lines.slice(starts[k], starts[k + 1]);
+      if (!block.length) continue;
+      let qHead = clean(block[0].replace(/^(?:Câu|Cau)\s*\d+\s*[:.)-]?\s*/i, '').replace(/\bID\s*:\s*\d+\b/i, ''));
+      const qLines = qHead ? [qHead] : [];
+      let answer = null;
+      const opts = [];
+      const stmts = [];
+      let explicitTF = false, answerSection = false;
+      for (const line of block.slice(1)) {
+        const am = line.match(answerLine);
+        if (am) { answer = clean(am[1]); answerSection = true; continue; }
+        if (answerSection) continue;
+        const sm = line.match(stmtLine);
+        if (sm && /(đúng|sai)\s*$/i.test(sm[2])) {
+          explicitTF = true;
+          const v = /đúng\s*$/i.test(sm[2]);
+          stmts.push({ t: clean(sm[2].replace(/\s*(đúng|sai)\s*$/i, '')), v });
+          continue;
+        }
+        const om = line.match(optLine);
+        if (om) {
+          let value = clean(om[2]);
+          const marked = /(?:✓|✔|☑|\[x\]|\(đúng\)|\bđáp án đúng\b)/i.test(value);
+          value = clean(value.replace(/(?:✓|✔|☑|\[x\]|\(đúng\)|\bđáp án đúng\b)/ig, ''));
+          opts.push({ key: om[1].toUpperCase(), text: value, correct: marked });
+          continue;
+        }
+        if (!opts.length && !stmts.length && !/^ID\s*:/i.test(line)) qLines.push(line);
+      }
+      const q = clean(qLines.join(' '));
+      if (!q) continue;
+      if (explicitTF && stmts.length) {
+        out.push({ type: 'tf', q, stmts });
+        continue;
+      }
+      if (opts.length >= 2) {
+        let keys = [];
+        if (answer) {
+          const letters = answer.match(/\b[A-H]\b/gi);
+          if (letters) keys = letters.map(x => x.toUpperCase());
+          if (!keys.length) {
+            const found = opts.filter(o => answer.toLowerCase().includes(o.text.toLowerCase()));
+            keys = found.map(o => o.key);
+          }
+        }
+        if (!keys.length) keys = opts.filter(o => o.correct).map(o => o.key);
+        const indices = [...new Set(keys.map(x => opts.findIndex(o => o.key === x)).filter(x => x >= 0))];
+        if (indices.length) out.push({ type: 'mc', q, opts: opts.map(o => o.text), a: indices });
+      }
+    }
+    if (!out.length) throw new Error('Đã đọc được văn bản nhưng không nhận diện được đáp án đúng. Hãy sao chép phần có nhãn “Đáp án đúng” hoặc dấu ✓.');
+    return out;
+  }
+
+  /* =====================================================================
+   * 3. LÕI XỬ LÝ (TÌM KIẾM VÀ ĐỐI CHIẾU)
+   * ===================================================================== */
   const CFG = { COV: .82, NEAR: .9 };
   const norm = s => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/đ/g, 'd').replace(/([+=<>%^\/*~-])/g, ' $1 ').replace(/[^a-z0-9\s+=<>%^\/*~-]/g, ' ').replace(/\s+/g, ' ').trim();
   const stripLabel = s => String(s == null ? '' : s).replace(/^\s*(?:[A-Da-d])\s*[\.\):]\s*/, '').trim();
-  
   function tok(s) {
     const t = norm(s).replace(/\bcau \d+\b/g, '').trim();
     const w = (t ? t.split(' ') : []).filter(x => x.length > 1 || /\d/.test(x)), o = w.slice();
     for (let i = 0; i < w.length - 1; i++) o.push(w[i] + '_' + w[i + 1]);
     return o;
   }
-  
   let IDF = new Map(), IDFMAX = 1, BK = [], INV = new Map(), TOT = new Float64Array(0);
 
   function vec(s) {
@@ -31,7 +173,6 @@
     for (const [k, v] of m) m.set(k, (1 + Math.log(v)) * (IDF.get(k) || IDFMAX));
     return m;
   }
-  
   function resolveAns(a, opts) {
     const arr = Array.isArray(a) ? a : [a], out = [];
     for (const x of arr) {
@@ -63,8 +204,8 @@
     }
     return out;
   }
-
   const fingerprint = it => it.type + '|' + norm(it.q) + '|' + (it.type === 'tf' ? it.st.map(s => norm(s.t)) : it.type === 'mc' ? it.opts.map(norm) : []).sort().join('|');
+  const answerSig = it => it.type === 'sa' ? it.ans.map(norm).sort().join('|') : it.type === 'tf' ? it.st.map(s => norm(s.t) + ' ' + (s.v ? 1 : 0)).sort().join('|') : it.a.map(i => norm(it.opts[i])).sort().join('|');
   const toRaw = it => it.type === 'sa' ? { type: 'sa', q: it.q, answers: it.ans.slice() } : it.type === 'tf' ? { type: 'tf', q: it.q, stmts: it.st.map(s => ({ t: s.t, v: s.v })) } : { type: 'mc', q: it.q, opts: it.opts.slice(), a: it.a.slice() };
 
   function loadBank(raw) {
@@ -75,7 +216,7 @@
     IDF = new Map();
     for (const [k, v] of df) IDF.set(k, Math.log((N + 1) / (v + 1)) + 1);
     IDFMAX = Math.log(N + 1) + 1;
-    for (const it of items) { 
+    for (const it of items) {
       const m = new Map();
       for (const p of it.parts) for (const [k, v] of vec(p)) m.set(k, (m.get(k) || 0) + v);
       it.fv = m;
@@ -86,6 +227,40 @@
     return items.length;
   }
 
+  const tset = it => it._ts || (it._ts = new Set(tok(it.parts.join(' '))));
+  function jaccard(a, b) {
+    const A = tset(a), B = tset(b); let c = 0;
+    const [s, l] = A.size < B.size ? [A, B] : [B, A];
+    for (const t of s) if (l.has(t)) c++;
+    return c / (A.size + B.size - c || 1);
+  }
+  const jacStr = (a, b) => { const A = new Set(tok(a)), B = new Set(tok(b)); let c = 0; for (const t of A) if (B.has(t)) c++; return c / (A.size + B.size - c || 1); };
+
+  function filterNew(raw, existing) {
+    const seen = new Map(existing.map(it => [fingerprint(it), it]));
+    const fresh = [], bucket = new Map(), stat = { added: 0, dup: 0, near: 0, conflict: 0, invalid: 0 };
+    const cand = canon(raw); stat.invalid = (raw || []).length - cand.length;
+    for (const it of cand) {
+      const fp = fingerprint(it), old = seen.get(fp);
+      if (old) { stat.dup++; if (answerSig(old) !== answerSig(it)) stat.conflict++; continue; }
+      let twin = null;
+      for (const r of rank(it.parts.join(' ')).slice(0, 5)) { const e = BK[r.i]; if (e.type === it.type && jaccard(e, it) >= CFG.NEAR) { twin = e; break; } }
+      const bk = it.type + norm(it.q).slice(0, 30);
+      if (!twin) for (const e of bucket.get(bk) || []) if (jaccard(e, it) >= CFG.NEAR) { twin = e; break; }
+      if (twin) { stat.near++; if (jacStr(answerSig(twin), answerSig(it)) < .8) stat.conflict++; continue; }
+      seen.set(fp, it); fresh.push(it); if (!bucket.has(bk)) bucket.set(bk, []); bucket.get(bk).push(it); stat.added++;
+    }
+    return { fresh, stat };
+  }
+
+  const exportBank = () => '[\n' + BK.map(it => ' ' + JSON.stringify(toRaw(it))).join(',\n') + '\n]';
+  const SAMPLE = '[\n {"type":"mc","q":"Thủ đô của Việt Nam là gì?","opts":["Huế","Hà Nội","Đà Nẵng","Hải Phòng"],"a":1},\n {"type":"tf","q":"Cho các nhận định về nước ở áp suất tiêu chuẩn.","stmts":[{"t":"Nước sôi ở 100 độ C","v":true},{"t":"Nước đóng băng ở 10 độ C","v":false}]},\n {"type":"sa","q":"Nước sôi ở bao nhiêu độ C?","answers":["100"]}\n]';
+
+  function coverage(it, set) {
+    let t = 0, h = 0;
+    for (const [k, v] of it.fv) { t += v; if (set.has(k)) h += v; }
+    return t ? h / t : 0;
+  }
   function rank(text) {
     const set = new Set(tok(text)), hit = new Float64Array(BK.length), touched = [];
     for (const t of set) {
@@ -96,7 +271,6 @@
     out.sort((a, b) => b.c - a.c);
     return out;
   }
-  
   function decide(rk) {
     const acc = [], seen = new Set();
     for (const r of rk) {
@@ -109,64 +283,64 @@
     return acc;
   }
 
-  // --- GIAO DIỆN ---
-  const css = `
-  .apa-ui{position:fixed;right:0;z-index:2147483647;display:flex;align-items:flex-start;font:13px/1.35 system-ui,sans-serif;touch-action:none}
-  .apa-tab{width:34px;height:34px;border:0;border-radius:10px 0 0 10px;background:#546e7a;color:#fff;font-size:16px;opacity:.9;padding:0}
-  .apa-tab.on{background:#2e7d32}
-  .apa-body{width:232px;max-height:80vh;overflow:auto;background:rgba(255,255,255,.97);color:#1b1f2a;border:1px solid #cfd4dc;border-radius:10px 0 0 10px;padding:8px;display:none;box-shadow:0 2px 10px rgba(0,0,0,.25);touch-action:pan-y}
-  .apa-ui.open .apa-body{display:block}
-  .apa-body button,.apa-body select,.apa-body input[type=text],.apa-body input[type=password]{border:1px solid #cfd4dc;background:#f3f4f8;color:#1b1f2a;border-radius:8px;padding:6px 4px;font-size:13px;box-sizing:border-box}
-  .apa-body select,.apa-body input[type=text],.apa-body input[type=password]{width:100%;margin:2px 0 6px}
-  .apa-r{display:flex;gap:6px;margin-bottom:6px}.apa-r button{flex:1}
-  .apa-big{font-weight:700}.apa-s{color:#555;font-size:12px;margin:4px 0}
-  .apa-res{font-size:12px;max-height:130px;overflow:auto;background:#f3f4f8;border-radius:8px;padding:4px 6px;margin:4px 0;display:none;white-space:pre-wrap}
-  .apa-sec{display:none;border-top:1px solid #e3e6ee;margin-top:6px;padding-top:6px}.apa-sec.show{display:block}
-  .apa-body textarea{width:100%;height:90px;font-size:12px;margin:4px 0;box-sizing:border-box}
-  .apa-ok{outline:3px solid #2e7d32!important;background:rgba(46,125,50,.18)!important}
-  .apa-t{outline:2px solid #2e7d32!important}.apa-f{outline:2px solid #c62828!important}
-  .apa-badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:12px;font-weight:700;color:#fff;pointer-events:none;vertical-align:middle}
-  .apa-b-ok{background:#2e7d32}.apa-b-no{background:#c62828}`;
-  
-  const st = document.createElement('style'); st.id = 'apa-css'; st.textContent = css; document.head.appendChild(st);
-  
-  const h = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt) e.textContent = txt; return e; };
-  const row = (...c) => { const r = h('div', 'apa-r'); r.append(...c); return r; };
-  
-  const ui = h('div', 'apa-ui'); ui.id = 'apa-ui';
-  const tab = h('button', 'apa-tab', '🎯');
-  const body = h('div', 'apa-body');
-  ui.style.top = (localStorage.getItem('apa_top') || 40) + '%';
+  /* =====================================================================
+   * 4. LƯU TRỮ VÀ ĐỌC MÀN HÌNH
+   * ===================================================================== */
+  const TEST = !!window.__APA_TEST__;
+  const hasGM = typeof GM_getValue === 'function' && typeof GM_setValue === 'function';
+  const store = {
+    get(k, d) { try { const v = hasGM ? GM_getValue(k, null) : localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { const s = JSON.stringify(v); hasGM ? GM_setValue(k, s) : localStorage.setItem(k, s); } catch (e) {} }
+  };
+  let userBank = store.get('apa_bank', []); if (!Array.isArray(userBank)) userBank = [];
+  let on = store.get('apa_on', true);
+  let bankCount = loadBank(BUILTIN.concat(userBank));
 
-  const bOn = h('button', 'apa-big', 'ON'), bScan = h('button', '', 'Quét lại');
-  const stats = h('div', 'apa-s'), status = h('div', 'apa-s'), res = h('div', 'apa-res');
-  const bData = h('button', '', 'Dữ liệu'), bDbg = h('button', '', 'Gỡ lỗi'), bFold = h('button', '', 'Thu gọn');
-  const secData = h('div', 'apa-sec'), bPaste = h('button', '', 'Dán & nạp nội dung đã sao chép'), bClr = h('button', '', 'Xóa dữ liệu nạp'), dInfo = h('div', 'apa-s');
-  const bExport = h('button', '', 'Xuất JSON'), bSample = h('button', '', 'Mẫu định dạng');
-  const fmt = h('div', 'apa-s', 'Dạng JSON: mảng các câu. Trắc nghiệm {type:"mc", q, opts:[...], a: số thứ tự đáp án đúng}. Đúng/Sai {type:"tf", q, stmts:[...]}. Điền ô {type:"sa", q, answers:[...]}.');
-  
-  secData.append(dInfo, row(bPaste), row(bExport, bSample), row(bClr), fmt);
-  body.append(row(bOn, bScan), stats, status, res, row(bData), row(bDbg, bFold), secData);
-  ui.append(body, tab);
-  document.body.appendChild(ui);
+  const inUi = el => !!(el && el.closest && el.closest('.apa-ui,.apa-badge'));
+  const cut = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+  function textOf(el) {
+    let s = '';
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = w.nextNode())) { const p = n.parentElement; if (p && !p.closest('.apa-badge,script,style')) s += n.nodeValue + ' '; }
+    return s;
+  }
+  const NM = new Map();
+  const normOf = el => { let v = NM.get(el); if (v === undefined) { v = norm(textOf(el)); NM.set(el, v); } return v; };
+  const PERF = { nodes: 0, full: 0, scans: 0 };
+  const TIMER_NODE = /^\s*\d{1,2}\s*:\s*\d{2}(?:\s*:\s*\d{2})?\s*$/, TIMER_RE = /\b\d{1,2}\s*:\s*\d{2}(?:\s*:\s*\d{2})?\b/g;
 
-  // --- BIẾN TRẠNG THÁI ---
-  let on = true;
-  let userBank = JSON.parse(localStorage.getItem('apa_bank') || '[]');
-  let bankCount = loadBank(userBank);
-
-  function setStatus(t) { status.textContent = t; }
-  function setResults(lines) { res.style.display = lines.length ? 'block' : 'none'; res.textContent = lines.join('\n'); }
-  
-  function renderStats() {
-    stats.textContent = 'Ngân hàng: ' + bankCount + ' câu';
-    bOn.textContent = on ? 'ON' : 'OFF'; bOn.style.color = on ? '#2e7d32' : '#c62828';
-    tab.classList.toggle('on', on);
+  function screenNodes(root) {
+    const nodes = [], vis = new Map(); let text = '';
+    const w = document.createTreeWalker(root || document.body, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = w.nextNode())) {
+      const v = n.nodeValue; if (!v || !v.trim() || TIMER_NODE.test(v)) continue;
+      const p = n.parentElement;
+      if (!p || /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/.test(p.tagName)) continue;
+      let ok = vis.get(p);
+      if (ok === undefined) {
+        ok = !inUi(p);
+        vis.set(p, ok);
+      }
+      if (!ok) continue;
+      nodes.push({ n, nt: norm(v) }); text += v.trim() + ' ';
+    }
+    text = text.replace(TIMER_RE, ' ');
+    PERF.nodes = nodes.length; if (!root) PERF.full++;
+    return { nodes, text, norm: norm(text) };
   }
 
-  // --- CÁC HÀM XỬ LÝ (Giữ nguyên logic cũ) ---
-  const cut = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
-  
+  function pickRoot(els, b) {
+    if (!els.length || !b) return null;
+    const qk = norm(b.q).slice(0, 30); let a = els[0];
+    for (let d = 0; d < 14 && a && a !== document.body; d++) {
+      if (els.every(e => a.contains(e)) && normOf(a).includes(qk)) { const up = a.parentElement; return up && up !== document.body ? up : a; }
+      a = a.parentElement;
+    }
+    return null;
+  }
+
   function locate(t, nodes) {
     if (!t) return null;
     const lim = t.length + 20, found = new Set();
@@ -193,111 +367,161 @@
     return arr.length === 1 ? arr[0] : null;
   }
 
-  const NM = new Map(); 
-  const normOf = el => { let v = NM.get(el); if (v === undefined) { v = norm(textOf(el)); NM.set(el, v); } return v; };
-  function textOf(el) {
-    let s = '';
-    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    let n;
-    while ((n = w.nextNode())) { const p = n.parentElement; if (p && !p.closest('.apa-badge,script,style')) s += n.nodeValue + ' '; }
-    return s;
-  }
-
-  function screenNodes() { 
-    const nodes = [], vis = new Map(); let text = '';
-    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    let n;
-    while ((n = w.nextNode())) {
-      const v = n.nodeValue; if (!v || !v.trim()) continue;
-      const p = n.parentElement;
-      if (!p || /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/.test(p.tagName)) continue;
-      let ok = vis.get(p); if (ok === undefined) { ok = !p.closest('.apa-ui,.apa-badge'); vis.set(p, ok); }
-      if (!ok) continue;
-      nodes.push({ n, nt: norm(v) }); text += v.trim() + ' ';
-    }
-    return { nodes, text, norm: norm(text) };
-  }
-
+  /* =====================================================================
+   * 5. TÔ ĐÁP ÁN VÀ QUÉT
+   * ===================================================================== */
+  const isTraining = () => TEST ? !!window.__APA_TRAIN__ : /\/take-training\//.test(location.pathname);
   function clearMarks() {
     document.querySelectorAll('.apa-ok,.apa-t,.apa-f').forEach(e => e.classList.remove('apa-ok', 'apa-t', 'apa-f'));
     document.querySelectorAll('.apa-badge').forEach(b => b.remove());
   }
   function badge(el, text, cls) { const s = document.createElement('span'); s.className = 'apa-badge ' + cls; s.textContent = text; el.appendChild(s); }
-
+  let marking = false, obs, lastEls = [], rootEl = null;
   function paint(ids, S) {
-    const lines = []; let marking = true;
+    const lines = []; lastEls = []; marking = true;
     try {
       clearMarks();
       for (const i of ids) {
         const b = BK[i];
         if (b.type === 'sa') {
           const el = locate(norm(b.q), S.nodes);
-          if (el) badge(el, 'Đáp án: ' + b.ans.join(' | '), 'apa-b-ok');
+          if (el) { lastEls.push(el); badge(el, 'Đáp án: ' + b.ans.join(' | '), 'apa-b-ok'); }
           lines.push('✎ Điền: ' + b.ans.join(' | '));
         } else if (b.type === 'mc') {
           for (const j of b.a) {
-            const el = locate(norm(b.opts[j]), S.nodes);
+            const el = locate(norm(b.opts[j]), S.nodes); if (el) lastEls.push(el);
             if (el) { el.classList.add('apa-ok'); badge(el, '✓ ĐÚNG', 'apa-b-ok'); }
-            lines.push('✓ ' + cut(b.opts[j], 80));
+            lines.push('✓ ' + cut(b.opts[j], 80) + (el ? '' : ' (không xác định được vị trí)'));
           }
         } else {
           for (const s of b.st) {
-            const el = locate(norm(s.t), S.nodes);
+            const el = locate(norm(s.t), S.nodes); if (el) lastEls.push(el);
             if (el) { el.classList.add(s.v ? 'apa-t' : 'apa-f'); badge(el, s.v ? 'ĐÚNG' : 'SAI', s.v ? 'apa-b-ok' : 'apa-b-no'); }
-            lines.push((s.v ? 'ĐÚNG' : 'SAI') + ' – ' + cut(s.t, 60));
+            lines.push((s.v ? 'ĐÚNG' : 'SAI') + ' – ' + cut(s.t, 60) + (el ? '' : ' (?)'));
           }
         }
       }
-    } finally { marking = false; }
+    } finally { marking = false; if (obs) obs.takeRecords(); }
     return lines;
   }
+  const cache = new Map(), matched = new Set(), missed = new Set();
+  let timer = null, lastDbg = null;
+  const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; };
 
+  function finish(key, S) {
+    const ids = cache.get(key) || [];
+    if (!ids.length) {
+      rootEl = null; missed.add(key); setResults([]); marking = true; clearMarks(); marking = false; obs.takeRecords();
+      setStatus('Chưa khớp dữ liệu trong ngân hàng'); renderStats(); return;
+    }
+    ids.forEach(i => matched.add(i)); missed.delete(key);
+    const lines = paint(ids, S);
+    rootEl = lines.length ? pickRoot(lastEls, BK[ids[0]]) : null;
+    if (!lines.length) { missed.add(key); setResults([]); setStatus('Không xác định được vị trí đáp án'); renderStats(); return; }
+    setResults(lines); setStatus('Đã đối chiếu ' + ids.length + ' câu từ ngân hàng.'); renderStats();
+  }
+  const sigOf = S => hash(S.norm.slice(0, 1500));
+  function resolveIds(S, key) {
+    let ids = cache.get(key);
+    if (ids === undefined) { const rk = rank(S.text); ids = decide(rk); lastDbg = { rk: rk.slice(0, 3), S }; cache.set(key, ids); }
+    return ids;
+  }
   function scan() {
     if (!on) return;
-    NM.clear();
-    const S = screenNodes();
-    if (!S.norm) { setStatus('Không thấy nội dung.'); return; }
-    const rk = rank(S.text), ids = decide(rk);
-    if (!ids.length) { setStatus('Chưa khớp dữ liệu.'); clearMarks(); return; }
-    const lines = paint(ids, S);
-    setResults(lines);
-    setStatus('Đã tìm thấy ' + ids.length + ' câu.');
+    try {
+      if (!bankCount) { setStatus('Ngân hàng trống: dán JSON ở mục Dữ liệu.'); return; }
+      if (!isTraining()) { setStatus('Chỉ hoạt động trong chế độ luyện tập.'); return; }
+      PERF.scans++; NM.clear();
+      const root = rootEl && document.body.contains(rootEl) ? rootEl : null;
+      let S = screenNodes(root);
+      if (!S.norm && root) { rootEl = null; S = screenNodes(null); }
+      if (!S.norm) { setStatus('Không thấy nội dung trên màn hình.'); return; }
+      let key = sigOf(S), ids = resolveIds(S, key);
+      if (!ids.length && root) {
+        const S2 = screenNodes(null), k2 = sigOf(S2), ids2 = resolveIds(S2, k2);
+        if (ids2.length) cache.set(key, ids2);
+        S = S2; key = k2;
+      }
+      finish(key, S);
+    } catch (e) { setStatus('Lỗi: ' + e.message); }
   }
+  const schedule = () => { clearTimeout(timer); timer = setTimeout(scan, 60); };
 
-  // --- SỰ KIỆN GIAO DIỆN ---
-  bOn.onclick = () => { on = !on; renderStats(); if (on) scan(); else { clearMarks(); setResults([]); } };
-  bScan.onclick = () => scan();
+  /* =====================================================================
+   * 6. GIAO DIỆN (GIỮ NGUYÊN)
+   * ===================================================================== */
+  const css = `
+.apa-ui{position:fixed;right:0;z-index:2147483647;display:flex;align-items:flex-start;font:13px/1.35 system-ui,sans-serif;touch-action:none}
+.apa-tab{width:34px;height:34px;border:0;border-radius:10px 0 0 10px;background:#546e7a;color:#fff;font-size:16px;opacity:.9;padding:0}
+.apa-tab.on{background:#2e7d32}
+.apa-body{width:232px;max-height:80vh;overflow:auto;background:rgba(255,255,255,.97);color:#1b1f2a;border:1px solid #cfd4dc;border-radius:10px 0 0 10px;padding:8px;display:none;box-shadow:0 2px 10px rgba(0,0,0,.25);touch-action:pan-y}
+.apa-ui.open .apa-body{display:block}
+.apa-body button,.apa-body select,.apa-body input[type=text],.apa-body input[type=password]{border:1px solid #cfd4dc;background:#f3f4f8;color:#1b1f2a;border-radius:8px;padding:6px 4px;font-size:13px;box-sizing:border-box}
+.apa-body select,.apa-body input[type=text],.apa-body input[type=password]{width:100%;margin:2px 0 6px}
+.apa-r{display:flex;gap:6px;margin-bottom:6px}.apa-r button{flex:1}
+.apa-big{font-weight:700}.apa-s{color:#555;font-size:12px;margin:4px 0}
+.apa-res{font-size:12px;max-height:130px;overflow:auto;background:#f3f4f8;border-radius:8px;padding:4px 6px;margin:4px 0;display:none;white-space:pre-wrap}
+.apa-sec{display:none;border-top:1px solid #e3e6ee;margin-top:6px;padding-top:6px}.apa-sec.show{display:block}
+.apa-body textarea{width:100%;height:90px;font-size:12px;margin:4px 0;box-sizing:border-box}
+.apa-ok{outline:3px solid #2e7d32!important;background:rgba(46,125,50,.18)!important}
+.apa-t{outline:2px solid #2e7d32!important}.apa-f{outline:2px solid #c62828!important}
+.apa-badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:12px;font-weight:700;color:#fff;pointer-events:none;vertical-align:middle}
+.apa-b-ok{background:#2e7d32}.apa-b-no{background:#c62828}`;
+  const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+  const h = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt) e.textContent = txt; return e; };
+  const row = (...c) => { const r = h('div', 'apa-r'); r.append(...c); return r; };
+  const ui = h('div', 'apa-ui'), tab = h('button', 'apa-tab', '🎯'), body = h('div', 'apa-body');
+  ui.id = 'apa-ui';
+  ui.style.top = store.get('apa_top', 40) + '%';
+
+  const bOn = h('button', 'apa-big'), bScan = h('button', '', 'Quét lại');
+  const stats = h('div', 'apa-s'), status = h('div', 'apa-s'), res = h('div', 'apa-res');
+  const bData = h('button', '', 'Dữ liệu'), bDbg = h('button', '', 'Gỡ lỗi'), bFold = h('button', '', 'Thu gọn');
+  const secData = h('div', 'apa-sec'), bPaste = h('button', '', 'Dán & nạp nội dung đã sao chép'), bClr = h('button', '', 'Xóa dữ liệu nạp'), dInfo = h('div', 'apa-s');
+  const bExport = h('button', '', 'Xuất JSON'), bSample = h('button', '', 'Mẫu định dạng'), fmt = h('div', 'apa-s', 'Dạng JSON: mảng các câu. Trắc nghiệm {type:"mc", q, opts:[...], a: số thứ tự đáp án đúng, 0=A}. Đúng/Sai {type:"tf", q, stmts:[{t, v:true/false}]}. Điền ô {type:"sa", q, answers:["30","30,0"]}. Dán lại bằng nút nạp: câu trùng được tự bỏ qua.');
+  secData.append(dInfo, row(bPaste), row(bExport, bSample), row(bClr), fmt);
+  body.append(row(bOn, bScan), stats, status, res, row(bData), row(bDbg, bFold), secData);
+  ui.append(body, tab);
+  document.body.appendChild(ui);
+
+  function setStatus(t) { status.textContent = t; }
+  function setResults(lines) { res.style.display = lines.length ? 'block' : 'none'; res.textContent = lines.join('\n'); }
+  function renderStats() {
+    stats.textContent = '✓ Đã đối chiếu: ' + matched.size + ' câu · ✗ Chưa khớp: ' + missed.size;
+    dInfo.textContent = 'Ngân hàng: ' + bankCount + ' câu (nhúng sẵn ' + BUILTIN.length + ' + nạp ' + userBank.length + ')';
+    bOn.textContent = on ? 'ON' : 'OFF'; bOn.style.color = on ? '#2e7d32' : '#c62828';
+    tab.classList.toggle('on', on);
+  }
+  bOn.onclick = () => { on = !on; store.set('apa_on', on); if (on) scan(); else { marking = true; clearMarks(); marking = false; obs.takeRecords(); setResults([]); setStatus('Đã tắt.'); } renderStats(); };
+  bScan.onclick = () => { cache.clear(); matched.clear(); missed.clear(); rootEl = null; scan(); };
   bFold.onclick = () => ui.classList.remove('open');
   bData.onclick = () => secData.classList.toggle('show');
-  
   bPaste.onclick = async () => {
     try {
-      const raw = await navigator.clipboard.readText();
-      if (!raw) return;
-      const j = JSON.parse(raw);
-      if (Array.isArray(j)) {
-        userBank = userBank.concat(j);
-        localStorage.setItem('apa_bank', JSON.stringify(userBank));
-        bankCount = loadBank(userBank); 
-        renderStats();
-        setStatus('Đã nạp thêm ' + j.length + ' câu. Tổng: ' + bankCount);
-        scan();
-      }
-    } catch (e) { setStatus('Lỗi: ' + e.message); }
+      if (!navigator.clipboard || !navigator.clipboard.readText) throw new Error('Trình duyệt chưa cho phép đọc clipboard. Hãy dùng menu Dán của trình duyệt hoặc mở Azota bằng trình duyệt hỗ trợ clipboard.');
+      const copied = await navigator.clipboard.readText();
+      const incoming = parseCopiedText(copied);
+      const { fresh, stat } = filterNew(incoming, BK);
+      userBank = userBank.concat(fresh.map(toRaw));
+      store.set('apa_bank', userBank);
+      bankCount = loadBank(BUILTIN.concat(userBank)); cache.clear(); matched.clear(); missed.clear(); rootEl = null; renderStats();
+      const report = ('Thêm ' + stat.added + ' câu mới · bỏ qua ' + (stat.dup + stat.near) + ' câu đã có' + (stat.near ? ' (' + stat.near + ' gần giống)' : '') +
+        (stat.conflict ? ' · ' + stat.conflict + ' câu khác đáp án, giữ bản cũ' : '') + (stat.invalid ? ' · ' + stat.invalid + ' mục không đọc được' : '') + '. Tổng ' + bankCount + ' câu.');
+      if (on && isTraining()) scan();
+      setStatus(report);
+    } catch (e) { setStatus('Không nạp được: ' + e.message); }
+  };
+  const toClip = (t, ok) => (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => setStatus(ok), () => prompt('Sao chép:', t));
+  bExport.onclick = () => { if (!BK.length) toClip(SAMPLE, 'Ngân hàng trống: đã sao chép mẫu định dạng.'); else toClip(exportBank(), 'Đã sao chép ' + BK.length + ' câu (JSON).'); };
+  bSample.onclick = () => toClip(SAMPLE, 'Đã sao chép mẫu định dạng JSON.');
+  bClr.onclick = () => { userBank = []; store.set('apa_bank', []); bankCount = loadBank(BUILTIN); cache.clear(); matched.clear(); missed.clear(); rootEl = null; renderStats(); scan(); };
+  bDbg.onclick = () => {
+    const S = lastDbg ? lastDbg.S : screenNodes();
+    const top = (lastDbg ? lastDbg.rk : rank(S.text).slice(0, 3)).map(r => r.i + ':' + r.c.toFixed(2) + ' ' + cut(BK[r.i].q, 40)).join('\n');
+    const info = 'URL: ' + location.href + '\nNgân hàng: ' + bankCount + '\nTop khớp:\n' + top + '\nVăn bản màn hình:\n' + cut(S.text, 1500);
+    (navigator.clipboard ? navigator.clipboard.writeText(info) : Promise.reject()).then(() => setStatus('Đã sao chép thông tin gỡ lỗi.'), () => prompt('Sao chép:', info));
   };
 
-  bClr.onclick = () => { 
-    if (confirm('Xóa toàn bộ ngân hàng đã nạp?')) {
-      userBank = []; localStorage.setItem('apa_bank', '[]'); 
-      bankCount = loadBank([]); renderStats(); clearMarks(); setResults([]); 
-    }
-  };
-  
-  const toClip = (t, ok) => navigator.clipboard.writeText(t).then(() => setStatus(ok));
-  bExport.onclick = () => toClip(JSON.stringify(BK, null, 2), 'Đã copy JSON ngân hàng.');
-  bSample.onclick = () => toClip('[\n {"type":"mc","q":"Thủ đô của Việt Nam là gì?","opts":["Huế","Hà Nội","Đà Nẵng","Hải Phòng"],"a":1}\n]', 'Đã copy mẫu.');
-
-  // Kéo thả
   let drag = null;
   tab.addEventListener('pointerdown', e => { drag = { y: e.clientY, top: ui.getBoundingClientRect().top, moved: false }; tab.setPointerCapture(e.pointerId); });
   tab.addEventListener('pointermove', e => {
@@ -307,12 +531,26 @@
   });
   tab.addEventListener('pointerup', () => {
     if (drag && !drag.moved) ui.classList.toggle('open');
-    else if (drag) localStorage.setItem('apa_top', Math.round(100 * ui.getBoundingClientRect().top / window.innerHeight));
+    else if (drag) store.set('apa_top', Math.round(100 * ui.getBoundingClientRect().top / window.innerHeight));
     drag = null;
   });
+  document.body.appendChild(ui);
+
+  obs = new MutationObserver(recs => {
+    if (marking) return;
+    if (!document.body.contains(ui)) document.body.appendChild(ui);
+    const ignorable = r => inUi(r.target) || (r.type === 'characterData'
+      ? /^[\d\s:.]{1,16}$/.test(r.target.nodeValue || '')
+      : (r.addedNodes.length + r.removedNodes.length > 0 && [...r.addedNodes, ...r.removedNodes].every(n => n.nodeType === 1 && inUi(n))));
+    if (recs.every(ignorable)) return;
+    schedule();
+  });
+  obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+  window.addEventListener('scroll', schedule, { passive: true, capture: true });
+  window.addEventListener('resize', schedule, { passive: true });
 
   renderStats();
-  scan(); // Quét ngay lần đầu
-  
+  if (on) scan(); else setStatus('Đã tắt.');
+
   window.apaLoading = false;
 })();
