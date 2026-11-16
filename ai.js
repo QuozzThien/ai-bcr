@@ -1,28 +1,29 @@
+/*! Azota Practice Assistant v3.3.0: bản chạy bằng bookmarklet / GitHub Pages.
+ *  Lưu trữ: localStorage của azota.vn (khóa apa_bank, apa_on, apa_top). Không dùng API, AI hay máy chủ nào.
+ *  Chỉ chạy trong chế độ luyện tập (đường dẫn có /take-training/). */
 (function () {
   'use strict';
-
-  // Ngăn chạy nhiều lần nếu đã có menu
-  if (window.apaLoading || document.getElementById('apa-ui')) {
-    if (document.getElementById('apa-ui')) document.getElementById('apa-ui').classList.toggle('open');
-    return;
-  }
-  window.apaLoading = true;
+  if (!window.__APA_TEST__ && !/(^|\.)azota\.vn$/i.test(location.hostname)) { alert('Công cụ này chỉ chạy trên azota.vn'); return; }
+  if (window.__APA_LOADED__) { const u = document.querySelector('.apa-ui'); if (u) u.classList.add('open'); return; } // bấm bookmarklet lần nữa: chỉ mở menu
+  window.__APA_LOADED__ = true;
 
   /* =====================================================================
    * 1. NGÂN HÀNG ĐÁP ÁN (có thể nạp thêm bằng ô JSON trong menu)
+   *  Trắc nghiệm: {"type":"mc","q":"Câu hỏi","opts":["PA 1","PA 2","PA 3","PA 4"],"a":2}
+   *     a = chỉ số 0-based (0=A), hoặc "C", hoặc nội dung phương án đúng, hoặc mảng.
+   *  Đúng/Sai:    {"type":"tf","q":"Nội dung chung","stmts":[{"t":"nhận định a","v":true}]}
    * ===================================================================== */
-  const BUILTIN = [
-    // Bạn có thể dán dữ liệu mới vào đây nếu muốn
-  ];
+  const BUILTIN = []; // ngân hàng nằm trong localStorage (apa_bank): nạp bằng nút "Dán & nạp"
 
-  /* =====================================================================
-   * 2. HÀM ĐỌC VÀ CHUẨN HÓA DỮ LIỆU TỪ CLIPBOARD
-   * ===================================================================== */
+  /* Chuyển văn bản đã sao chép từ trang xem đáp án thành ngân hàng.
+     Chỉ nhận câu có dấu hiệu đáp án đúng rõ ràng; không suy đoán từ lựa chọn của người làm. */
+  /* Trang "xem đáp án" của Azota: nhãn A./a) nằm riêng một dòng, đáp án đúng/sai nằm ở khối "Đáp án đúng:",
+     câu điền ô có "Đáp án được chấp nhận". Chỉ lấy đáp án hiển thị rõ, không suy đoán. */
   function parseAzotaReview(raw) {
     const NOISE = /^(?:Giải thích|Thí sinh chọn\b.*|Thí sinh trả lời|Thí sinh không nhập.*|Câu làm sai\b.*|error\.\.\.|Đề đảo|Bỏ quảng cáo|Trắc nghiệm|Đúng\s*&\s*sai|Phần\s*\d+\..*)$/i;
     const lines = String(raw).replace(/\r/g, '').split('\n').map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
     const L = [];
-    for (let i = 0; i < lines.length; i++) {
+    for (let i = 0; i < lines.length; i++) { // ghép dòng nhãn "A." / "a)" với dòng nội dung ngay sau
       const m = lines[i].match(/^([A-Ha-h])\s*[\.\)]$/);
       if (m && i + 1 < lines.length && !/^[A-Ha-h]\s*[\.\)]$/.test(lines[i + 1])) { L.push(m[1] + (/[A-H]/.test(m[1]) ? '. ' : ') ') + lines[i + 1]); i++; }
       else L.push(lines[i]);
@@ -43,7 +44,7 @@
         if (mode === 'ans') {
           if (/^Thí sinh/i.test(line)) { mode = 'done'; continue; }
           if ((m = line.match(/^([a-d])\s*[\)\.]\s*(Đúng|Sai)\s*$/i))) tfAns[m[1].toLowerCase()] = /^đúng$/i.test(m[2]);
-          else if (/^[A-H](?:\s*[,;&]\s*[A-H])*$/.test(line) && ansFirst && !letters.length) letters = line.match(/[A-H]/g);
+          else if (/^[A-H](?:\s*[,;&]\s*[A-H])*$/.test(line) && ansFirst && !letters.length) letters = line.match(/[A-H]/g); // bỏ qua dãy nút A B C D phía sau
           ansFirst = false;
           continue;
         }
@@ -53,7 +54,7 @@
         if (NOISE.test(line)) { cur = null; continue; }
         if ((m = line.match(/^([A-H])\s*[\.\):]\s*(.+)$/))) { cur = { t: m[2] }; opts.push(cur); continue; }
         if ((m = line.match(/^([a-d])\s*[\.\)]\s*(.+)$/))) { cur = { t: m[2] }; stmts.push(cur); continue; }
-        if (/^[A-H]$/.test(line)) { cur = null; continue; }
+        if (/^[A-H]$/.test(line)) { cur = null; continue; } // nút chọn A B C D
         if (cur) cur.t += ' ' + line; else if (!opts.length && !stmts.length) q.push(line);
       }
       const qt = stripTag(clean(q.join(' ')));
@@ -70,19 +71,26 @@
     }
     return out;
   }
-
+  // Khi sao chép bị dính liền ("...Đáp án đúng: ACâu 2 ID:..."): chèn xuống dòng trước các mốc cấu trúc
+  const unglue = t => t.replace(/([^\n])(Câu\s*\d+\s*ID\s*:\s*\d+)/g, '$1\n$2').replace(/([^\n])(Đáp án đúng\s*:)/g, '$1\n$2')
+    .replace(/([^\n])(Đáp án được chấp nhận)/g, '$1\n$2').replace(/([^\n])(Thí sinh (?:chọn|trả lời))/g, '$1\n$2');
   function parseCopiedText(input) {
     const raw = String(input || '').replace(/\r/g, '').trim();
     if (!raw) throw new Error('Clipboard đang trống.');
     try { const j = JSON.parse(raw); if (Array.isArray(j)) return j; if (j && Array.isArray(j.questions)) return j.questions; } catch (_) {}
-    const a = parseAzotaReview(raw);
+    const a = parseAzotaReview(unglue(raw));
     return a.length ? a : parseGeneric(raw);
   }
 
   function parseGeneric(input) {
     const raw = String(input || '').replace(/\r/g, '').trim();
     if (!raw) throw new Error('Clipboard đang trống.');
-    try { const j = JSON.parse(raw); if (Array.isArray(j)) return j; if (j && Array.isArray(j.questions)) return j.questions; } catch (_) {}
+    // Nếu người dùng đã sao chép JSON thì dùng trực tiếp.
+    try {
+      const j = JSON.parse(raw);
+      if (Array.isArray(j)) return j;
+      if (j && Array.isArray(j.questions)) return j.questions;
+    } catch (_) {}
 
     const lines = raw.split('\n').map(x => x.trim()).filter(Boolean);
     const starts = [];
@@ -125,6 +133,7 @@
           opts.push({ key: om[1].toUpperCase(), text: value, correct: marked });
           continue;
         }
+        // Các dòng nằm giữa tiêu đề câu và phương án/nhận định là phần nội dung câu hỏi.
         if (!opts.length && !stmts.length && !/^ID\s*:/i.test(line)) qLines.push(line);
       }
       const q = clean(qLines.join(' '));
@@ -152,21 +161,19 @@
     return out;
   }
 
-  /* =====================================================================
-   * 3. LÕI XỬ LÝ (TÌM KIẾM VÀ ĐỐI CHIẾU)
-   * ===================================================================== */
-  const CFG = { COV: .82, NEAR: .9 };
-  const norm = s => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    .replace(/đ/g, 'd').replace(/([+=<>%^\/*~-])/g, ' $1 ').replace(/[^a-z0-9\s+=<>%^\/*~-]/g, ' ').replace(/\s+/g, ' ').trim();
+  /* CORE-START: đối chiếu, không đụng DOM, có thể kiểm thử riêng */
+  const CFG = { COV: .82 };
+  const norm = s => String(s == null ? '' : s).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/đ/g, 'd').replace(/([+=<>%^\/*])/g, ' $1 ').replace(/[^a-z0-9\s+=<>%^\/*]/g, ' ').replace(/\s+/g, ' ').trim();
   const stripLabel = s => String(s == null ? '' : s).replace(/^\s*(?:[A-Da-d])\s*[\.\):]\s*/, '').trim();
-  function tok(s) {
+  function tok(s) { // từ đơn + cặp từ liền kề (bỏ "Câu 12")
     const t = norm(s).replace(/\bcau \d+\b/g, '').trim();
     const w = (t ? t.split(' ') : []).filter(x => x.length > 1 || /\d/.test(x)), o = w.slice();
     for (let i = 0; i < w.length - 1; i++) o.push(w[i] + '_' + w[i + 1]);
     return o;
   }
-  let IDF = new Map(), IDFMAX = 1, BK = [], INV = new Map(), TOT = new Float64Array(0);
-
+  let IDF = new Map(), IDFMAX = 1, BK = [];
+  let INV = new Map(), TOT = new Float64Array(0); // chỉ mục ngược: token -> [chỉ số câu, trọng số, ...]
   function vec(s) {
     const m = new Map();
     for (const t of tok(s)) m.set(t, (m.get(t) || 0) + 1);
@@ -184,12 +191,12 @@
     }
     return [...new Set(out)];
   }
-
+  // Chuẩn hóa dữ liệu thô thành mục chuẩn (chưa lập chỉ mục)
   function canon(raw) {
     const out = [];
     for (const r of raw || []) {
       if (!r || !r.q) continue;
-      if (r.type === 'sa' || r.answers) {
+      if (r.type === 'sa' || r.answers) { // điền ô / trả lời ngắn: có thể có nhiều đáp án được chấp nhận
         const ans = (r.answers || [].concat(r.a == null ? [] : r.a)).map(x => String(x).trim()).filter(Boolean);
         if (ans.length) out.push({ type: 'sa', q: String(r.q), ans, parts: [String(r.q)] });
         continue;
@@ -204,10 +211,10 @@
     }
     return out;
   }
+  // Dấu vân tay không phụ thuộc thứ tự phương án/nhận định (Azota hay đảo)
   const fingerprint = it => it.type + '|' + norm(it.q) + '|' + (it.type === 'tf' ? it.st.map(s => norm(s.t)) : it.type === 'mc' ? it.opts.map(norm) : []).sort().join('|');
   const answerSig = it => it.type === 'sa' ? it.ans.map(norm).sort().join('|') : it.type === 'tf' ? it.st.map(s => norm(s.t) + ' ' + (s.v ? 1 : 0)).sort().join('|') : it.a.map(i => norm(it.opts[i])).sort().join('|');
   const toRaw = it => it.type === 'sa' ? { type: 'sa', q: it.q, answers: it.ans.slice() } : it.type === 'tf' ? { type: 'tf', q: it.q, stmts: it.st.map(s => ({ t: s.t, v: s.v })) } : { type: 'mc', q: it.q, opts: it.opts.slice(), a: it.a.slice() };
-
   function loadBank(raw) {
     const items = [], dup = new Set();
     for (const it of canon(raw)) { const k = fingerprint(it); if (!dup.has(k)) { dup.add(k); items.push(it); } }
@@ -216,7 +223,7 @@
     IDF = new Map();
     for (const [k, v] of df) IDF.set(k, Math.log((N + 1) / (v + 1)) + 1);
     IDFMAX = Math.log(N + 1) + 1;
-    for (const it of items) {
+    for (const it of items) { // gộp vector từng phần để không sinh cặp từ nối giữa các phần
       const m = new Map();
       for (const p of it.parts) for (const [k, v] of vec(p)) m.set(k, (m.get(k) || 0) + v);
       it.fv = m;
@@ -226,7 +233,7 @@
     BK = items;
     return items.length;
   }
-
+  // ---- Bộ lọc câu đã có khi dán: trùng hẳn / gần giống / trùng trong chính lần dán
   const tset = it => it._ts || (it._ts = new Set(tok(it.parts.join(' '))));
   function jaccard(a, b) {
     const A = tset(a), B = tset(b); let c = 0;
@@ -235,7 +242,8 @@
     return c / (A.size + B.size - c || 1);
   }
   const jacStr = (a, b) => { const A = new Set(tok(a)), B = new Set(tok(b)); let c = 0; for (const t of A) if (B.has(t)) c++; return c / (A.size + B.size - c || 1); };
-
+  CFG.NEAR = .9;
+  // existing = ngân hàng hiện tại (BK đã nạp). Trả về các câu thật sự mới + thống kê.
   function filterNew(raw, existing) {
     const seen = new Map(existing.map(it => [fingerprint(it), it]));
     const fresh = [], bucket = new Map(), stat = { added: 0, dup: 0, near: 0, conflict: 0, invalid: 0 };
@@ -243,7 +251,7 @@
     for (const it of cand) {
       const fp = fingerprint(it), old = seen.get(fp);
       if (old) { stat.dup++; if (answerSig(old) !== answerSig(it)) stat.conflict++; continue; }
-      let twin = null;
+      let twin = null; // gần giống: tra chỉ mục ngược trong ngân hàng + nhóm theo đầu câu trong lần dán
       for (const r of rank(it.parts.join(' ')).slice(0, 5)) { const e = BK[r.i]; if (e.type === it.type && jaccard(e, it) >= CFG.NEAR) { twin = e; break; } }
       const bk = it.type + norm(it.q).slice(0, 30);
       if (!twin) for (const e of bucket.get(bk) || []) if (jaccard(e, it) >= CFG.NEAR) { twin = e; break; }
@@ -252,15 +260,16 @@
     }
     return { fresh, stat };
   }
-
+  // Xuất ngân hàng ra JSON đúng dạng để nạp lại (mỗi câu một dòng)
   const exportBank = () => '[\n' + BK.map(it => ' ' + JSON.stringify(toRaw(it))).join(',\n') + '\n]';
   const SAMPLE = '[\n {"type":"mc","q":"Thủ đô của Việt Nam là gì?","opts":["Huế","Hà Nội","Đà Nẵng","Hải Phòng"],"a":1},\n {"type":"tf","q":"Cho các nhận định về nước ở áp suất tiêu chuẩn.","stmts":[{"t":"Nước sôi ở 100 độ C","v":true},{"t":"Nước đóng băng ở 10 độ C","v":false}]},\n {"type":"sa","q":"Nước sôi ở bao nhiêu độ C?","answers":["100"]}\n]';
-
+  // Tỉ lệ nội dung của câu trong ngân hàng xuất hiện trên màn hình (không phụ thuộc thứ tự/vị trí)
   function coverage(it, set) {
     let t = 0, h = 0;
     for (const [k, v] of it.fv) { t += v; if (set.has(k)) h += v; }
     return t ? h / t : 0;
   }
+  // Tra cứu bằng chỉ mục ngược: chỉ chạm vào các câu có chung từ với màn hình (độ phủ giữ nguyên kết quả cũ)
   function rank(text) {
     const set = new Set(tok(text)), hit = new Float64Array(BK.length), touched = [];
     for (const t of set) {
@@ -271,6 +280,7 @@
     out.sort((a, b) => b.c - a.c);
     return out;
   }
+  // Nhận các câu phủ đủ nội dung; loại câu "ăn theo" (nội dung đã được giải thích bởi các câu tốt hơn)
   function decide(rk) {
     const acc = [], seen = new Set();
     for (const r of rk) {
@@ -282,20 +292,23 @@
     }
     return acc;
   }
+  /* CORE-END */
 
   /* =====================================================================
-   * 4. LƯU TRỮ VÀ ĐỌC MÀN HÌNH
+   * 2. LƯU TRỮ (localStorage của azota.vn)
    * ===================================================================== */
   const TEST = !!window.__APA_TEST__;
-  const hasGM = typeof GM_getValue === 'function' && typeof GM_setValue === 'function';
   const store = {
-    get(k, d) { try { const v = hasGM ? GM_getValue(k, null) : localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-    set(k, v) { try { const s = JSON.stringify(v); hasGM ? GM_setValue(k, s) : localStorage.setItem(k, s); } catch (e) {} }
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   };
   let userBank = store.get('apa_bank', []); if (!Array.isArray(userBank)) userBank = [];
   let on = store.get('apa_on', true);
   let bankCount = loadBank(BUILTIN.concat(userBank));
 
+  /* =====================================================================
+   * 3. ĐỌC MÀN HÌNH + TÌM VỊ TRÍ ĐỂ TÔ (không phụ thuộc cấu trúc/class của Azota)
+   * ===================================================================== */
   const inUi = el => !!(el && el.closest && el.closest('.apa-ui,.apa-badge'));
   const cut = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
   function textOf(el) {
@@ -305,22 +318,22 @@
     while ((n = w.nextNode())) { const p = n.parentElement; if (p && !p.closest('.apa-badge,script,style')) s += n.nodeValue + ' '; }
     return s;
   }
-  const NM = new Map();
+  const NM = new Map(); // nhớ chữ chuẩn hóa của phần tử trong một lần quét
   const normOf = el => { let v = NM.get(el); if (v === undefined) { v = norm(textOf(el)); NM.set(el, v); } return v; };
   const PERF = { nodes: 0, full: 0, scans: 0 };
   const TIMER_NODE = /^\s*\d{1,2}\s*:\s*\d{2}(?:\s*:\s*\d{2})?\s*$/, TIMER_RE = /\b\d{1,2}\s*:\s*\d{2}(?:\s*:\s*\d{2})?\b/g;
-
-  function screenNodes(root) {
+  function screenNodes(root) { // chỉ các đoạn chữ đang nằm trong màn hình; root = vùng câu hỏi đã biết (nhanh)
     const nodes = [], vis = new Map(); let text = '';
     const w = document.createTreeWalker(root || document.body, NodeFilter.SHOW_TEXT);
     let n;
     while ((n = w.nextNode())) {
-      const v = n.nodeValue; if (!v || !v.trim() || TIMER_NODE.test(v)) continue;
+      const v = n.nodeValue; if (!v || !v.trim() || TIMER_NODE.test(v)) continue; // bỏ đồng hồ đếm giờ
       const p = n.parentElement;
       if (!p || /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/.test(p.tagName)) continue;
-      let ok = vis.get(p);
+      let ok = vis.get(p); // kiểm tra hiển thị một lần cho mỗi phần tử cha
       if (ok === undefined) {
         ok = !inUi(p);
+        if (ok && !TEST) { const r = p.getBoundingClientRect(); ok = r.height > 0 && r.bottom >= 0 && r.top <= window.innerHeight * 1.2; }
         vis.set(p, ok);
       }
       if (!ok) continue;
@@ -330,7 +343,7 @@
     PERF.nodes = nodes.length; if (!root) PERF.full++;
     return { nodes, text, norm: norm(text) };
   }
-
+  // Từ các dòng đáp án đã tô, tìm "khung câu hỏi" nhỏ nhất chứa cả đề; lần sau chỉ quét vùng này
   function pickRoot(els, b) {
     if (!els.length || !b) return null;
     const qk = norm(b.q).slice(0, 30); let a = els[0];
@@ -340,10 +353,11 @@
     }
     return null;
   }
-
+  // Tìm phần tử "dòng" chứa đúng văn bản t (đã chuẩn hóa); trả null nếu không chắc chắn
   function locate(t, nodes) {
     if (!t) return null;
     const lim = t.length + 20, found = new Set();
+    // Lượt 1: khóa dài (cả cụm); lượt 2: chỉ từ đầu tiên, dùng khi chữ bị tách qua nhiều thẻ (<b>, công thức...)
     for (const key of [t.length > 24 ? t.slice(0, 24) : t, t.split(' ')[0]]) {
       if (found.size) break;
       for (const x of nodes) {
@@ -351,16 +365,8 @@
         let el = x.n.parentElement, d = 0;
         while (el && el !== document.body && d < 8 && !normOf(el).includes(t)) { el = el.parentElement; d++; }
         if (!el || el === document.body || normOf(el).length > lim) continue;
-        
-        let best = el;
-        while (best.children.length > 0) {
-            let foundChild = false;
-            for(let c of best.children) {
-                if (normOf(c).includes(t)) { best = c; foundChild = true; break; }
-            }
-            if (!foundChild) break;
-        }
-        found.add(best);
+        while (el.parentElement && el.parentElement !== document.body && normOf(el.parentElement).length <= lim) el = el.parentElement;
+        found.add(el);
       }
     }
     const arr = [...found].filter(a => ![...found].some(b => b !== a && a.contains(b)));
@@ -368,7 +374,7 @@
   }
 
   /* =====================================================================
-   * 5. TÔ ĐÁP ÁN VÀ QUÉT
+   * 5. TÔ ĐÁP ÁN, QUÉT, CACHE
    * ===================================================================== */
   const isTraining = () => TEST ? !!window.__APA_TRAIN__ : /\/take-training\//.test(location.pathname);
   function clearMarks() {
@@ -376,11 +382,11 @@
     document.querySelectorAll('.apa-badge').forEach(b => b.remove());
   }
   function badge(el, text, cls) { const s = document.createElement('span'); s.className = 'apa-badge ' + cls; s.textContent = text; el.appendChild(s); }
-  let marking = false, obs, lastEls = [], rootEl = null;
-  function paint(ids, S) {
-    const lines = []; lastEls = []; marking = true;
+  let marking = false, obs;
+  function paint(ids, S, keep) {
+    const lines = []; if (!keep) lastEls = []; marking = true;
     try {
-      clearMarks();
+      if (!keep) clearMarks();
       for (const i of ids) {
         const b = BK[i];
         if (b.type === 'sa') {
@@ -405,7 +411,7 @@
     return lines;
   }
   const cache = new Map(), matched = new Set(), missed = new Set();
-  let timer = null, lastDbg = null;
+  let timer = null, lastDbg = null, lastEls = [], rootEl = null;
   const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; };
 
   function finish(key, S) {
@@ -421,7 +427,61 @@
     setResults(lines); setStatus('Đã đối chiếu ' + ids.length + ' câu từ ngân hàng.'); renderStats();
   }
   const sigOf = S => hash(S.norm.slice(0, 1500));
-  function resolveIds(S, key) {
+  // ---- Chế độ lướt: cả đề nằm trên một trang, mỗi tiêu đề "Câu N" mở ra một khối câu hỏi riêng
+  const HEAD_RE = /^\s*Câu\s*\d+\s*$/i;
+  let lastMode = 'fallback', lastPaintKey = '';
+  function findBlocks() {
+    const heads = [], w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = w.nextNode())) {
+      if (!HEAD_RE.test(n.nodeValue)) continue;
+      const p = n.parentElement;
+      if (!p || inUi(p) || /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/.test(p.tagName)) continue;
+      heads.push(n);
+    }
+    const cnt = el => { let c = 0; for (const h of heads) if (el.contains(h)) c++; return c; };
+    return heads.map(h => { // khối = tổ tiên lớn nhất chỉ chứa đúng một tiêu đề câu
+      let el = h.parentElement;
+      while (el.parentElement && el.parentElement !== document.body && cnt(el.parentElement) === 1) el = el.parentElement;
+      return { head: h, el, no: h.nodeValue.replace(/\D+/g, '') };
+    });
+  }
+  function blockNodes(el) {
+    const nodes = [], ok = new Map(); let text = '';
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = w.nextNode())) {
+      const v = n.nodeValue; if (!v || !v.trim() || TIMER_NODE.test(v)) continue;
+      const p = n.parentElement; if (!p || /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/.test(p.tagName)) continue;
+      let g = ok.get(p); if (g === undefined) { g = !p.closest('.apa-badge,.apa-ui'); ok.set(p, g); }
+      if (!g) continue;
+      nodes.push({ n, nt: norm(v) }); text += v.trim() + ' ';
+    }
+    text = text.replace(TIMER_RE, ' ');
+    return { nodes, text, norm: norm(text) };
+  }
+  function scanBlocks(blocks) {
+    lastMode = 'blocks'; rootEl = null;
+    const items = blocks.map(b => { const S = blockNodes(b.el), key = sigOf(S); return { b, S, key, ids: S.norm ? resolveIds(S, key) : [] }; });
+    const pageKey = items.map(x => x.key).join(',') + '#' + bankCount;
+    if (pageKey === lastPaintKey && document.querySelector('.apa-badge')) return; // không đổi: giữ nguyên dấu đã tô
+    marking = true; clearMarks(); marking = false;
+    const lines = [], bad = []; let ok = 0; lastEls = [];
+    for (const x of items) {
+      if (!x.ids.length) {
+        bad.push(x.b.no); missed.add(x.key);
+        marking = true; badge(x.b.head.parentElement, 'Chưa khớp', 'apa-b-un'); marking = false;
+        continue;
+      }
+      ok++; x.ids.forEach(i => matched.add(i)); missed.delete(x.key);
+      paint(x.ids, x.S, true).forEach(l => lines.push('Câu ' + x.b.no + ': ' + l));
+    }
+    lastPaintKey = pageKey; obs.takeRecords();
+    setResults(lines);
+    setStatus('Đã đối chiếu ' + ok + '/' + items.length + ' câu' + (bad.length ? ' · Chưa khớp: Câu ' + bad.join(', ') : '') + '.');
+    renderStats();
+  }
+  function resolveIds(S, key) { // tra chỉ mục ngược, nhớ theo chữ ký màn hình
     let ids = cache.get(key);
     if (ids === undefined) { const rk = rank(S.text); ids = decide(rk); lastDbg = { rk: rk.slice(0, 3), S }; cache.set(key, ids); }
     return ids;
@@ -432,12 +492,15 @@
       if (!bankCount) { setStatus('Ngân hàng trống: dán JSON ở mục Dữ liệu.'); return; }
       if (!isTraining()) { setStatus('Chỉ hoạt động trong chế độ luyện tập.'); return; }
       PERF.scans++; NM.clear();
+      const blocks = findBlocks();
+      if (blocks.length) { scanBlocks(blocks); return; }
+      lastMode = 'fallback'; lastPaintKey = '';
       const root = rootEl && document.body.contains(rootEl) ? rootEl : null;
       let S = screenNodes(root);
       if (!S.norm && root) { rootEl = null; S = screenNodes(null); }
       if (!S.norm) { setStatus('Không thấy nội dung trên màn hình.'); return; }
       let key = sigOf(S), ids = resolveIds(S, key);
-      if (!ids.length && root) {
+      if (!ids.length && root) { // vùng nhanh không đủ: quét toàn trang một lần rồi nhớ lại vùng mới
         const S2 = screenNodes(null), k2 = sigOf(S2), ids2 = resolveIds(S2, k2);
         if (ids2.length) cache.set(key, ids2);
         S = S2; key = k2;
@@ -448,7 +511,7 @@
   const schedule = () => { clearTimeout(timer); timer = setTimeout(scan, 60); };
 
   /* =====================================================================
-   * 6. GIAO DIỆN (GIỮ NGUYÊN)
+   * 6. GIAO DIỆN
    * ===================================================================== */
   const css = `
 .apa-ui{position:fixed;right:0;z-index:2147483647;display:flex;align-items:flex-start;font:13px/1.35 system-ui,sans-serif;touch-action:none}
@@ -466,23 +529,22 @@
 .apa-ok{outline:3px solid #2e7d32!important;background:rgba(46,125,50,.18)!important}
 .apa-t{outline:2px solid #2e7d32!important}.apa-f{outline:2px solid #c62828!important}
 .apa-badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:12px;font-weight:700;color:#fff;pointer-events:none;vertical-align:middle}
-.apa-b-ok{background:#2e7d32}.apa-b-no{background:#c62828}`;
+.apa-b-ok{background:#2e7d32}  .apa-b-no{background:#c62828}.apa-b-un{background:#78909c}`;
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   const h = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt) e.textContent = txt; return e; };
   const row = (...c) => { const r = h('div', 'apa-r'); r.append(...c); return r; };
   const ui = h('div', 'apa-ui'), tab = h('button', 'apa-tab', '🎯'), body = h('div', 'apa-body');
-  ui.id = 'apa-ui';
   ui.style.top = store.get('apa_top', 40) + '%';
 
   const bOn = h('button', 'apa-big'), bScan = h('button', '', 'Quét lại');
   const stats = h('div', 'apa-s'), status = h('div', 'apa-s'), res = h('div', 'apa-res');
   const bData = h('button', '', 'Dữ liệu'), bDbg = h('button', '', 'Gỡ lỗi'), bFold = h('button', '', 'Thu gọn');
+  // Mục dữ liệu
   const secData = h('div', 'apa-sec'), bPaste = h('button', '', 'Dán & nạp nội dung đã sao chép'), bClr = h('button', '', 'Xóa dữ liệu nạp'), dInfo = h('div', 'apa-s');
-  const bExport = h('button', '', 'Xuất JSON'), bSample = h('button', '', 'Mẫu định dạng'), fmt = h('div', 'apa-s', 'Dạng JSON: mảng các câu. Trắc nghiệm {type:"mc", q, opts:[...], a: số thứ tự đáp án đúng, 0=A}. Đúng/Sai {type:"tf", q, stmts:[{t, v:true/false}]}. Điền ô {type:"sa", q, answers:["30","30,0"]}. Dán lại bằng nút nạp: câu trùng được tự bỏ qua.');
-  secData.append(dInfo, row(bPaste), row(bExport, bSample), row(bClr), fmt);
+  const bExport = h('button', '', 'Xuất JSON'), bDl = h('button', '', 'Tải file .json'), bSample = h('button', '', 'Mẫu định dạng'), fmt = h('div', 'apa-s', 'Dạng JSON: mảng các câu. Trắc nghiệm {type:"mc", q, opts:[...], a: số thứ tự đáp án đúng, 0=A}. Đúng/Sai {type:"tf", q, stmts:[{t, v:true/false}]}. Điền ô {type:"sa", q, answers:["30","30,0"]}. Dán lại bằng nút nạp: câu trùng được tự bỏ qua.');
+  secData.append(dInfo, row(bPaste), row(bExport, bDl), row(bSample, bClr), fmt);
   body.append(row(bOn, bScan), stats, status, res, row(bData), row(bDbg, bFold), secData);
   ui.append(body, tab);
-  document.body.appendChild(ui);
 
   function setStatus(t) { status.textContent = t; }
   function setResults(lines) { res.style.display = lines.length ? 'block' : 'none'; res.textContent = lines.join('\n'); }
@@ -493,7 +555,7 @@
     tab.classList.toggle('on', on);
   }
   bOn.onclick = () => { on = !on; store.set('apa_on', on); if (on) scan(); else { marking = true; clearMarks(); marking = false; obs.takeRecords(); setResults([]); setStatus('Đã tắt.'); } renderStats(); };
-  bScan.onclick = () => { cache.clear(); matched.clear(); missed.clear(); rootEl = null; scan(); };
+  bScan.onclick = () => { cache.clear(); matched.clear(); missed.clear(); rootEl = null; lastPaintKey = ''; scan(); };
   bFold.onclick = () => ui.classList.remove('open');
   bData.onclick = () => secData.classList.toggle('show');
   bPaste.onclick = async () => {
@@ -504,8 +566,8 @@
       const { fresh, stat } = filterNew(incoming, BK);
       userBank = userBank.concat(fresh.map(toRaw));
       store.set('apa_bank', userBank);
-      bankCount = loadBank(BUILTIN.concat(userBank)); cache.clear(); matched.clear(); missed.clear(); rootEl = null; renderStats();
-      const report = ('Thêm ' + stat.added + ' câu mới · bỏ qua ' + (stat.dup + stat.near) + ' câu đã có' + (stat.near ? ' (' + stat.near + ' gần giống)' : '') +
+      bankCount = loadBank(BUILTIN.concat(userBank)); cache.clear(); matched.clear(); missed.clear(); rootEl = null; lastPaintKey = ''; renderStats();
+      const report =       ('Thêm ' + stat.added + ' câu mới · bỏ qua ' + (stat.dup + stat.near) + ' câu đã có' + (stat.near ? ' (' + stat.near + ' gần giống)' : '') +
         (stat.conflict ? ' · ' + stat.conflict + ' câu khác đáp án, giữ bản cũ' : '') + (stat.invalid ? ' · ' + stat.invalid + ' mục không đọc được' : '') + '. Tổng ' + bankCount + ' câu.');
       if (on && isTraining()) scan();
       setStatus(report);
@@ -513,15 +575,23 @@
   };
   const toClip = (t, ok) => (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => setStatus(ok), () => prompt('Sao chép:', t));
   bExport.onclick = () => { if (!BK.length) toClip(SAMPLE, 'Ngân hàng trống: đã sao chép mẫu định dạng.'); else toClip(exportBank(), 'Đã sao chép ' + BK.length + ' câu (JSON).'); };
+  bDl.onclick = () => { // tải toàn bộ ngân hàng (đang lưu trong localStorage) về thành file .json
+    const text = BK.length ? exportBank() : SAMPLE, a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = 'azota-ngan-hang-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    setStatus(BK.length ? 'Đã tải file ' + BK.length + ' câu.' : 'Ngân hàng trống: đã tải mẫu định dạng.');
+  };
   bSample.onclick = () => toClip(SAMPLE, 'Đã sao chép mẫu định dạng JSON.');
-  bClr.onclick = () => { userBank = []; store.set('apa_bank', []); bankCount = loadBank(BUILTIN); cache.clear(); matched.clear(); missed.clear(); rootEl = null; renderStats(); scan(); };
-  bDbg.onclick = () => {
+  bClr.onclick = () => { userBank = []; store.set('apa_bank', []); bankCount = loadBank(BUILTIN); cache.clear(); matched.clear(); missed.clear(); rootEl = null; lastPaintKey = ''; renderStats(); scan(); };
+  bDbg.onclick = () => { // sao chép thông tin để gửi lại cho người hỗ trợ chỉnh script
     const S = lastDbg ? lastDbg.S : screenNodes();
     const top = (lastDbg ? lastDbg.rk : rank(S.text).slice(0, 3)).map(r => r.i + ':' + r.c.toFixed(2) + ' ' + cut(BK[r.i].q, 40)).join('\n');
     const info = 'URL: ' + location.href + '\nNgân hàng: ' + bankCount + '\nTop khớp:\n' + top + '\nVăn bản màn hình:\n' + cut(S.text, 1500);
     (navigator.clipboard ? navigator.clipboard.writeText(info) : Promise.reject()).then(() => setStatus('Đã sao chép thông tin gỡ lỗi.'), () => prompt('Sao chép:', info));
   };
 
+  // Tab: chạm để mở/đóng, kéo dọc để đổi vị trí (không che nút Kiểm tra/chuyển câu)
   let drag = null;
   tab.addEventListener('pointerdown', e => { drag = { y: e.clientY, top: ui.getBoundingClientRect().top, moved: false }; tab.setPointerCapture(e.pointerId); });
   tab.addEventListener('pointermove', e => {
@@ -540,17 +610,17 @@
     if (marking) return;
     if (!document.body.contains(ui)) document.body.appendChild(ui);
     const ignorable = r => inUi(r.target) || (r.type === 'characterData'
-      ? /^[\d\s:.]{1,16}$/.test(r.target.nodeValue || '')
+      ? /^[\d\s:.]{1,16}$/.test(r.target.nodeValue || '') // chỉ đồng hồ/số đếm đổi
       : (r.addedNodes.length + r.removedNodes.length > 0 && [...r.addedNodes, ...r.removedNodes].every(n => n.nodeType === 1 && inUi(n))));
     if (recs.every(ignorable)) return;
     schedule();
   });
   obs.observe(document.body, { childList: true, subtree: true, characterData: true });
-  window.addEventListener('scroll', schedule, { passive: true, capture: true });
-  window.addEventListener('resize', schedule, { passive: true });
+  const onView = () => { if (lastMode === 'fallback') schedule(); }; // chế độ lướt đã quét cả trang, cuộn không cần quét lại
+  window.addEventListener('scroll', onView, { passive: true, capture: true });
+  window.addEventListener('resize', onView, { passive: true });
 
   renderStats();
+  if (TEST) window.__APA__ = { setBank: b => { bankCount = loadBank(b); cache.clear(); lastPaintKey = ''; }, parse: parseCopiedText, userBank: () => userBank, scan, rank, decide, loadBank, filterNew, exportBank, coverage, canon, toRaw, getBK: () => BK, perf: () => PERF, root: () => rootEl, SAMPLE, status: () => status.textContent, results: () => res.textContent, setBank: b => { bankCount = loadBank(b); cache.clear(); } };
   if (on) scan(); else setStatus('Đã tắt.');
-
-  window.apaLoading = false;
 })();
