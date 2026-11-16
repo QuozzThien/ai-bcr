@@ -1,4 +1,4 @@
-/*! Azota Practice Assistant v3.3.2: bản chạy bằng bookmarklet / GitHub Pages.
+/*! Azota Practice Assistant v3.3.3: bản chạy bằng bookmarklet / GitHub Pages.
  *  Lưu trữ: localStorage của azota.vn (khóa apa_bank, apa_on, apa_top). Không dùng API, AI hay máy chủ nào.
  *  Chỉ chạy trong chế độ luyện tập (đường dẫn có /take-training/). */
 (function () {
@@ -175,6 +175,19 @@
     }
     const w = mg.filter(x => x.length > 1 || /\d/.test(x)), o = w.slice();
     for (let i = 0; i < w.length - 1; i++) o.push(w[i] + '_' + w[i + 1]);
+    // Công thức: KaTeX tách "p_1" thành "p" + "1": ghép chữ đơn + chỉ số ("p1"), chuỗi "p1v1" và tách ngược "p1v1" gõ liền
+    const f = []; let changed = false;
+    for (let i = 0; i < raw.length; i++) {
+      if (/^[a-z]$/.test(raw[i]) && i + 1 < raw.length && /^\d{1,3}$/.test(raw[i + 1])) { f.push(raw[i] + raw[i + 1]); i++; changed = true; } else f.push(raw[i]);
+    }
+    const G = /^[a-z]\d{1,3}$/;
+    for (const x of f) if (G.test(x)) o.push(x);
+    for (let i = 0; i < f.length; i++) { // chuỗi nhóm liền nhau: p1v1
+      if (!G.test(f[i])) continue; let j = i, run = ''; while (j < f.length && G.test(f[j])) run += f[j++];
+      if (j - i >= 2) o.push(run); i = j - 1;
+    }
+    for (const x of raw) { const m = /^(?:[a-z]\d{1,3}){2,}$/.test(x) && x.match(/[a-z]\d{1,3}/g); if (m) o.push(...m); }
+    if (changed) { const ff = f.filter(x => x.length > 1 || /\d/.test(x)); for (let i = 0; i < ff.length - 1; i++) o.push(ff[i] + '_' + ff[i + 1]); }
     return o;
   }
   let IDF = new Map(), IDFMAX = 1, BK = [];
@@ -322,13 +335,14 @@
   /* =====================================================================
    * 3. ĐỌC MÀN HÌNH + TÌM VỊ TRÍ ĐỂ TÔ (không phụ thuộc cấu trúc/class của Azota)
    * ===================================================================== */
+  const MATH_SKIP = '.katex-mathml,annotation,mjx-assistive-mml,.MJX_Assistive_MathML'; // bản MathML ẩn: trùng với bản hiển thị
   const inUi = el => !!(el && el.closest && el.closest('.apa-ui,.apa-badge'));
   const cut = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
   function textOf(el) {
     let s = '';
     const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
     let n;
-    while ((n = w.nextNode())) { const p = n.parentElement; if (p && !p.closest('.apa-badge,script,style')) s += n.nodeValue + ' '; }
+    while ((n = w.nextNode())) { const p = n.parentElement; if (p && !p.closest('.apa-badge,script,style,' + MATH_SKIP)) s += n.nodeValue + ' '; }
     return s;
   }
   const NM = new Map(); // nhớ chữ chuẩn hóa của phần tử trong một lần quét
@@ -345,7 +359,7 @@
       if (!p || /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/.test(p.tagName)) continue;
       let ok = vis.get(p); // kiểm tra hiển thị một lần cho mỗi phần tử cha
       if (ok === undefined) {
-        ok = !inUi(p);
+        ok = !inUi(p) && !p.closest(MATH_SKIP);
         if (ok && !TEST) { const r = p.getBoundingClientRect(); ok = r.height > 0 && r.bottom >= 0 && r.top <= window.innerHeight * 1.2; }
         vis.set(p, ok);
       }
@@ -369,15 +383,15 @@
   // Tìm phần tử "dòng" chứa đúng văn bản t (so khớp không tính khoảng trắng, vì KaTeX tách từng chữ/đơn vị);
   // trả null nếu không chắc chắn
   const CMM = new Map();
-  const cm = el => { let v = CMM.get(el); if (v === undefined) { v = normOf(el).replace(/ /g, ''); CMM.set(el, v); } return v; };
+  const cm = el => { let v = CMM.get(el); if (v === undefined) { v = normOf(el).replace(/[ \/]/g, ''); CMM.set(el, v); } return v; };
   function locate(t, nodes, others) {
     if (!t) return null;
-    const tc = t.replace(/ /g, ''); if (!tc) return null;
-    const oth = (others || []).map(o => o.replace(/ /g, '')).filter(o => o && o !== tc);
+    const tc = t.replace(/[ \/]/g, ''); if (!tc) return null;
+    const oth = (others || []).map(o => o.replace(/[ \/]/g, '')).filter(o => o && o !== tc);
     const lim = tc.length + (tc.length < 12 ? 6 : 20), short = tc.length < 8, found = new Set();
     const rival = el => oth.some(o => !tc.includes(o) && cm(el).includes(o)); // đã chứa phương án khác = leo quá dòng
     for (const x of nodes) {
-      const c = x.c !== undefined ? x.c : (x.c = x.nt.replace(/ /g, ''));
+      const c = x.c !== undefined ? x.c : (x.c = x.nt.replace(/[ \/]/g, ''));
       if (!c || !(tc.startsWith(c) || (!short && c.includes(tc)))) continue; // câu ngắn ("4.") chỉ nhận đoạn chữ trùng đầu đáp án, không nhận "Câu 4"
       let el = x.n.parentElement, d = 0;
       while (el && el !== document.body && d < 8 && !cm(el).includes(tc)) { el = el.parentElement; d++; }
@@ -400,7 +414,7 @@
   /* =====================================================================
    * 5. TÔ ĐÁP ÁN, QUÉT, CACHE
    * ===================================================================== */
-  const isTraining = () => true;
+  const isTraining = () => TEST ? !!window.__APA_TRAIN__ : /\/take-training\//.test(location.pathname);
   function clearMarks() {
     document.querySelectorAll('.apa-ok,.apa-t,.apa-f').forEach(e => e.classList.remove('apa-ok', 'apa-t', 'apa-f'));
     document.querySelectorAll('.apa-badge').forEach(b => b.remove());
@@ -477,7 +491,7 @@
     while ((n = w.nextNode())) {
       const v = n.nodeValue; if (!v || !v.trim() || TIMER_NODE.test(v)) continue;
       const p = n.parentElement; if (!p || /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/.test(p.tagName)) continue;
-      let g = ok.get(p); if (g === undefined) { g = !p.closest('.apa-badge,.apa-ui'); ok.set(p, g); }
+      let g = ok.get(p); if (g === undefined) { g = !p.closest('.apa-badge,.apa-ui,' + MATH_SKIP); ok.set(p, g); }
       if (!g) continue;
       nodes.push({ n, nt: norm(v) }); text += v.trim() + ' ';
     }
