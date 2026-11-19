@@ -45,8 +45,8 @@ a{color:var(--accent)}
 <section class="card">
   <h2 style="margin-top:0">1. Mở bài luyện tập</h2>
   <label for="url">URL bài luyện tập Azota</label>
-  <input id="url" type="url" placeholder="https://azota.vn/take-training/abc123..." autocomplete="off" spellcheck="false">
-  <p class="hint">Dán URL từ thanh địa chỉ sau khi bấm "Làm bài" trên Azota. Phải chứa <kbd>/take-training/</kbd>.</p>
+  <input id="url" type="url" placeholder="https://azota.vn/take-training/... hoặc /exam/... /test/..." autocomplete="off" spellcheck="false">
+  <p class="hint">Dán URL bất kỳ trên Azota (take-training, exam, test, review...).</p>
   <div class="row">
     <button id="openBtn">Mở tab mới</button>
     <button id="copyBm" class="ghost">Copy bookmarklet</button>
@@ -117,7 +117,8 @@ a{color:var(--accent)}
 /* ===== Tiện ích ===== */
 const $ = id => document.getElementById(id);
 const setStatus = (msg, kind='') => { const s = $('status'); s.textContent = msg; s.className = 'status ' + kind; };
-const isAzotaTraining = u => /^https?:\/\/([^/]+\.)?azota\.vn\/take-training\//i.test(u);
+// Chấp nhận mọi path trên azota.vn (take-training, exam, test, review, ...)
+const isAzotaTraining = u => /^https?:\/\/([^/]+\.)?azota\.vn\//i.test(u);
 
 /* ===== Tạo bookmarklet từ kpa.js cùng thư mục ===== */
 function buildBookmarklet() {
@@ -129,12 +130,11 @@ function buildBookmarklet() {
 $('openBtn').onclick = () => {
   const u = $('url').value.trim();
   if (!u) return setStatus('Nhập URL bài luyện tập trước.', 'warn');
-  if (!isAzotaTraining(u)) return setStatus('URL không hợp lệ — phải là azota.vn/take-training/...', 'err');
+  if (!isAzotaTraining(u)) return setStatus('URL không hợp lệ — phải là azota.vn/...', 'err');
   try {
     const w = window.open(u, '_blank', 'noopener');
     if (!w) return setStatus('Trình duyệt chặn popup. Cho phép popup cho trang này rồi thử lại.', 'err');
     setStatus('Đã mở tab. Bấm bookmarklet APA trên tab Azota để kích hoạt.', 'ok');
-    // Lưu URL gần nhất (chỉ localStorage của launcher)
     try { localStorage.setItem('apa_last_url', u); } catch(_) {}
   } catch (e) { setStatus('Lỗi mở tab: ' + e.message, 'err'); }
 };
@@ -146,7 +146,6 @@ $('copyBm').onclick = async () => {
     await navigator.clipboard.writeText(bm);
     setStatus('Đã copy bookmarklet. Dán vào thanh địa chỉ trên tab Azota rồi Enter, hoặc lưu thành dấu trang.', 'ok');
   } catch(_) {
-    // Fallback: hiện prompt
     prompt('Copy bookmarklet:', bm);
   }
 };
@@ -162,6 +161,8 @@ $('pasteBtn').onclick = async () => {
 };
 
 /* ===== 4. Ngân hàng: export/import/sample ===== */
+const SAMPLE = '[\n {"type":"mc","q":"Thủ đô của Việt Nam là gì?","opts":["Huế","Hà Nội","Đà Nẵng","Hải Phòng"],"a":1},\n {"type":"tf","q":"Cho các nhận định về nước ở áp suất tiêu chuẩn.","stmts":[{"t":"Nước sôi ở 100 độ C","v":true},{"t":"Nước đóng băng ở 10 độ C","v":false}]},\n {"type":"sa","q":"Nước sôi ở bao nhiêu độ C?","answers":["100"]}\n]';
+
 $('sampleBtn').onclick = () => {
   $('bankTa').value = SAMPLE;
   setStatus('Đã nạp mẫu JSON vào ô ngân hàng.', 'ok');
@@ -202,9 +203,6 @@ try {
   const last = localStorage.getItem('apa_last_url');
   if (last) $('url').value = last;
 } catch(_) {}
-
-/* ===== Mẫu JSON ===== */
-const SAMPLE = '[\n {"type":"mc","q":"Thủ đô của Việt Nam là gì?","opts":["Huế","Hà Nội","Đà Nẵng","Hải Phòng"],"a":1},\n {"type":"tf","q":"Cho các nhận định về nước ở áp suất tiêu chuẩn.","stmts":[{"t":"Nước sôi ở 100 độ C","v":true},{"t":"Nước đóng băng ở 10 độ C","v":false}]},\n {"type":"sa","q":"Nước sôi ở bao nhiêu độ C?","answers":["100"]}\n]';
 </script>
 </body>
 </html>
