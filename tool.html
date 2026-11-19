@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Azota Launcher – Mở bài luyện tập</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#172033;--muted:#586579;--line:#e5eaf2;--soft:#f7f9fc;--accent:#2563eb;--ok:#16a34a;--warn:#b45309;--err:#b91c1c}
+@media(prefers-color-scheme:dark){:root{--bg:#1b2230;--fg:#e6ebf5;--muted:#a3afc4;--line:#2e3850;--soft:#232c3e;--accent:#4f8cff;--ok:#4ade80;--warn:#fbbf24;--err:#f87171}}
+*{box-sizing:border-box}
+body{font:16px/1.55 system-ui,-apple-system,Segoe UI,Arial,sans-serif;max-width:760px;margin:0 auto;padding:24px 16px 64px;background:var(--bg);color:var(--fg)}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:16px;margin:24px 0 8px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+.card{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--muted)}
+input[type=url],input[type=text],select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);font:15px/1.4 inherit}
+textarea{min-height:80px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+button{cursor:pointer;border:0;border-radius:10px;padding:11px 16px;font:600 14px/1 inherit;color:#fff;background:var(--accent);transition:filter .15s}
+button:hover{filter:brightness(1.08)}
+button:disabled{opacity:.55;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+button.sm{padding:7px 12px;font-size:13px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.status{margin-top:12px;font-size:13px;min-height:1.4em;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
+.status.ok{color:var(--ok)}.status.warn{color:var(--warn)}.status.err{color:var(--err)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:13px;position:relative;padding-left:38px}
+.steps li::before{content:counter(s);position:absolute;left:10px;top:12px;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+kbd{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12px;font-family:ui-monospace,monospace}
+.bank{font-size:13px;color:var(--muted);margin-top:6px}
+details summary{cursor:pointer;font-weight:600;font-size:14px;padding:4px 0}
+details[open] summary{margin-bottom:8px}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<h1>🎯 Azota Launcher</h1>
+<p class="sub">Mở nhanh bài luyện tập và kích hoạt trợ lý. Không lưu dữ liệu lên máy chủ — mọi thứ chạy trong trình duyệt của bạn.</p>
+
+<!-- ===== BƯỚC 1: NHẬP URL ===== -->
+<section class="card">
+  <h2 style="margin-top:0">1. Mở bài luyện tập</h2>
+  <label for="url">URL bài luyện tập Azota</label>
+  <input id="url" type="url" placeholder="https://azota.vn/take-training/abc123..." autocomplete="off" spellcheck="false">
+  <p class="hint">Dán URL từ thanh địa chỉ sau khi bấm "Làm bài" trên Azota. Phải chứa <kbd>/take-training/</kbd>.</p>
+  <div class="row">
+    <button id="openBtn">Mở tab mới</button>
+    <button id="copyBm" class="ghost">Copy bookmarklet</button>
+    <button id="pasteBtn" class="ghost sm">Dán từ clipboard</button>
+  </div>
+  <div id="status" class="status"></div>
+</section>
+
+<!-- ===== BƯỚC 2: KÍCH HOẠT ===== -->
+<section class="card">
+  <h2 style="margin-top:0">2. Kích hoạt trợ lý trên tab Azota</h2>
+  <ol class="steps">
+    <li>Mở tab Azota ở trên (nút "Mở tab mới").</li>
+    <li>Bấm bookmarklet <b>KPA</b> / <b>APA</b> trên thanh dấu trang — hoặc dán bookmarklet vừa copy vào thanh địa chỉ rồi Enter.</li>
+    <li>Bảng điều khiển hiện ra ở cạnh phải. Mở mục <b>Dữ liệu</b> để dán ngân hàng đáp án (JSON) nếu chưa có.</li>
+  </ol>
+  <p class="hint">Bookmarklet chỉ chạy trên tab Azota đang mở. Nếu chưa cài, xem hướng dẫn ở mục 3.</p>
+</section>
+
+<!-- ===== BƯỚC 3: CÀI BOOKMARKLET ===== -->
+<section class="card">
+  <h2 style="margin-top:0">3. Cài bookmarklet (làm 1 lần)</h2>
+  <details>
+    <summary>Cách tạo dấu trang bookmarklet</summary>
+    <ol style="font-size:13px;line-height:1.7;padding-left:20px;margin:0">
+      <li>Chuột phải thanh dấu trang → <b>Thêm trang</b> (hoặc <kbd>Ctrl</kbd>+<kbd>D</kbd>).</li>
+      <li>Tên: <b>APA</b> (hoặc KPA).</li>
+      <li>URL: dán toàn bộ bookmarklet (nút "Copy bookmarklet" ở mục 1).</li>
+      <li>Lưu. Khi cần dùng, bấm dấu trang khi đang ở tab Azota.</li>
+    </ol>
+  </details>
+  <details>
+    <summary>Bookmarklet APA là gì?</summary>
+    <p style="font-size:13px;margin:6px 0">Đoạn mã JavaScript nhỏ chạy trong tab Azota, đọc câu hỏi đang hiển thị và tô đáp án khớp với ngân hàng local của bạn. Không gửi dữ liệu đi đâu. Toàn bộ logic nằm trong file <code>kpa.js</code> của repo này.</p>
+    <p style="font-size:13px;margin:6px 0">Để tạo bookmarklet từ file <code>kpa.js</code>:
+    <br><code>javascript:(function(){var s=document.createElement('script');s.src='&lt;URL_REPO&gt;/kpa.js?v='+Date.now();document.head.appendChild(s)})();</code></p>
+  </details>
+</section>
+
+<!-- ===== BƯỚC 4: NGÂN HÀNG ===== -->
+<section class="card">
+  <h2 style="margin-top:0">4. Ngân hàng đáp án (tùy chọn)</h2>
+  <p class="hint" style="margin-top:0">Ngân hàng lưu trong <code>localStorage</code> của <b>azota.vn</b> — không lưu ở trang này. Dán JSON vào bảng APA trên tab Azota, hoặc import/export qua đây để sao lưu.</p>
+  <div class="row">
+    <button id="exportBtn" class="ghost sm">Export từ clipboard</button>
+    <button id="importBtn" class="ghost sm">Import vào clipboard</button>
+    <button id="sampleBtn" class="ghost sm">Mẫu JSON</button>
+  </div>
+  <p class="bank" id="bankInfo">Chưa có dữ liệu ngân hàng trong trang này.</p>
+  <textarea id="bankTa" placeholder='Dán JSON ngân hàng ở đây (mảng câu hỏi)...' style="margin-top:8px"></textarea>
+  <div class="row">
+    <button id="bankCopy" class="sm">Copy JSON</button>
+    <button id="bankClear" class="ghost sm">Xóa ô</button>
+    <button id="bankCount" class="ghost sm">Đếm câu</button>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<section class="card" style="font-size:13px;color:var(--muted)">
+  <b>Lưu ý:</b> Công cụ chỉ <i>đọc</i> câu hỏi và <i>gợi ý</i> đáp án từ ngân hàng bạn tự nạp; không tự chọn, điền hay nộp bài. Bạn tự chịu trách nhiệm về việc sử dụng.
+  <br><br>
+  <a href="./index.html">← Trang cài bookmarklet KPA (Khan Academy)</a>
+</section>
+
+<script>
+'use strict';
+
+/* ===== Tiện ích ===== */
+const $ = id => document.getElementById(id);
+const setStatus = (msg, kind='') => { const s = $('status'); s.textContent = msg; s.className = 'status ' + kind; };
+const isAzotaTraining = u => /^https?:\/\/([^/]+\.)?azota\.vn\/take-training\//i.test(u);
+
+/* ===== Tạo bookmarklet từ kpa.js cùng thư mục ===== */
+function buildBookmarklet() {
+  const src = new URL('kpa.js', location.href).href;
+  return "javascript:(function(){var s=document.createElement('script');s.src='" + src + "?v='+Date.now();s.onerror=function(){alert('Không tải được APA (trang có thể chặn script ngoài)')};document.head.appendChild(s)})();";
+}
+
+/* ===== 1. Mở tab ===== */
+$('openBtn').onclick = () => {
+  const u = $('url').value.trim();
+  if (!u) return setStatus('Nhập URL bài luyện tập trước.', 'warn');
+  if (!isAzotaTraining(u)) return setStatus('URL không hợp lệ — phải là azota.vn/take-training/...', 'err');
+  try {
+    const w = window.open(u, '_blank', 'noopener');
+    if (!w) return setStatus('Trình duyệt chặn popup. Cho phép popup cho trang này rồi thử lại.', 'err');
+    setStatus('Đã mở tab. Bấm bookmarklet APA trên tab Azota để kích hoạt.', 'ok');
+    // Lưu URL gần nhất (chỉ localStorage của launcher)
+    try { localStorage.setItem('apa_last_url', u); } catch(_) {}
+  } catch (e) { setStatus('Lỗi mở tab: ' + e.message, 'err'); }
+};
+
+/* ===== 2. Copy bookmarklet ===== */
+$('copyBm').onclick = async () => {
+  const bm = buildBookmarklet();
+  try {
+    await navigator.clipboard.writeText(bm);
+    setStatus('Đã copy bookmarklet. Dán vào thanh địa chỉ trên tab Azota rồi Enter, hoặc lưu thành dấu trang.', 'ok');
+  } catch(_) {
+    // Fallback: hiện prompt
+    prompt('Copy bookmarklet:', bm);
+  }
+};
+
+/* ===== 3. Dán từ clipboard ===== */
+$('pasteBtn').onclick = async () => {
+  try {
+    const t = (await navigator.clipboard.readText()).trim();
+    if (!t) return setStatus('Clipboard trống.', 'warn');
+    $('url').value = t;
+    setStatus('Đã dán URL từ clipboard.', 'ok');
+  } catch(_) { setStatus('Không đọc được clipboard — dán thủ công vào ô URL.', 'warn'); }
+};
+
+/* ===== 4. Ngân hàng: export/import/sample ===== */
+$('sampleBtn').onclick = () => {
+  $('bankTa').value = SAMPLE;
+  setStatus('Đã nạp mẫu JSON vào ô ngân hàng.', 'ok');
+};
+$('exportBtn').onclick = async () => {
+  try {
+    const t = await navigator.clipboard.readText();
+    $('bankTa').value = t;
+    const n = countBank(t);
+    $('bankInfo').textContent = n ? `Đã import ${n} câu từ clipboard.` : 'Clipboard không chứa ngân hàng hợp lệ.';
+    setStatus('Đã import ngân hàng từ clipboard.', n ? 'ok' : 'warn');
+  } catch(_) { setStatus('Không đọc được clipboard.', 'warn'); }
+};
+$('importBtn').onclick = async () => {
+  const t = $('bankTa').value.trim();
+  if (!t) return setStatus('Ô ngân hàng đang trống.', 'warn');
+  try { await navigator.clipboard.writeText(t); setStatus('Đã copy ngân hàng — dán vào bảng APA trên tab Azota (mục Dữ liệu → Dán & nạp).', 'ok'); }
+  catch(_) { prompt('Copy ngân hàng:', t); }
+};
+$('bankCopy').onclick = $('importBtn').onclick;
+$('bankClear').onclick = () => { $('bankTa').value = ''; $('bankInfo').textContent = 'Chưa có dữ liệu ngân hàng trong trang này.'; setStatus('Đã xóa ô.', ''); };
+$('bankCount').onclick = () => {
+  const n = countBank($('bankTa').value);
+  $('bankInfo').textContent = n ? `Ngân hàng hợp lệ: ${n} câu.` : 'Không đọc được ngân hàng (JSON không hợp lệ).';
+  setStatus(n ? `Đã đếm: ${n} câu.` : 'JSON không hợp lệ.', n ? 'ok' : 'err');
+};
+
+function countBank(text) {
+  try {
+    const j = JSON.parse(text);
+    const arr = Array.isArray(j) ? j : (j && Array.isArray(j.questions) ? j.questions : null);
+    return arr ? arr.filter(x => x && x.q).length : 0;
+  } catch(_) { return 0; }
+}
+
+/* ===== Khôi phục URL gần nhất ===== */
+try {
+  const last = localStorage.getItem('apa_last_url');
+  if (last) $('url').value = last;
+} catch(_) {}
+
+/* ===== Mẫu JSON ===== */
+const SAMPLE = '[\n {"type":"mc","q":"Thủ đô của Việt Nam là gì?","opts":["Huế","Hà Nội","Đà Nẵng","Hải Phòng"],"a":1},\n {"type":"tf","q":"Cho các nhận định về nước ở áp suất tiêu chuẩn.","stmts":[{"t":"Nước sôi ở 100 độ C","v":true},{"t":"Nước đóng băng ở 10 độ C","v":false}]},\n {"type":"sa","q":"Nước sôi ở bao nhiêu độ C?","answers":["100"]}\n]';
+</script>
+</body>
+</html>
