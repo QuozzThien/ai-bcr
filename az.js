@@ -414,7 +414,7 @@
   /* =====================================================================
    * 5. TÔ ĐÁP ÁN, QUÉT, CACHE
    * ===================================================================== */
-  const isTraining = () => true; //indow.__APA_TRAIN__ : /\/take-training\
+  const isTraining = () => true; //? !!window.__APA_TRAIN__ : /\/take-training\//.test(location.pathname);
   function clearMarks() {
     document.querySelectorAll('.apa-ok,.apa-t,.apa-f').forEach(e => e.classList.remove('apa-ok', 'apa-t', 'apa-f'));
     document.querySelectorAll('.apa-badge').forEach(b => b.remove());
